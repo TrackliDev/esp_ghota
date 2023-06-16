@@ -667,6 +667,7 @@ static void ghota_task(void *pvParameters) {
                 ghota_update(handle);
             } else {
                 ESP_LOGI(TAG, "No New Version Available");
+                ESP_ERROR_CHECK(esp_event_post(GHOTA_EVENTS, GHOTA_EVENT_NOUPDATE_AVAILABLE, handle, sizeof(ghota_client_handle_t *), portMAX_DELAY));
             }
         } else {
             ESP_LOGI(TAG, "No Update Available");
