@@ -319,6 +319,8 @@ esp_err_t ghota_check(ghota_client_handle_t *handle)
     char url[CONFIG_MAX_URL_LEN];
     snprintf(url, CONFIG_MAX_URL_LEN, "https://%s/repos/%s/%s/releases/latest", handle->config.hostname, handle->config.orgname, handle->config.reponame);
 
+    // ABSTRACTION: get_info(&stream_parser)
+
     esp_http_client_config_t httpconfig = {
         .url = url,
         .crt_bundle_attach = esp_crt_bundle_attach,
@@ -529,6 +531,7 @@ esp_err_t ghota_storage_update(ghota_client_handle_t *handle)
     /* give time for the system to react, such as unmounting the filesystems etc */
     vTaskDelay(pdMS_TO_TICKS(1000));
 
+    // ABSTRACTION: update_partition(???)
     esp_http_client_config_t config = {
         .url = handle->result.storageurl,
         .event_handler = _http_event_storage_handler,
@@ -592,6 +595,9 @@ esp_err_t ghota_update(ghota_client_handle_t *handle)
         xSemaphoreGive(ghota_lock);
         return ESP_OK;
     }
+
+    // ABSTRACTION: ota_begin(???)
+
     esp_http_client_config_t httpconfig = {
         .url = handle->result.url,
         .crt_bundle_attach = esp_crt_bundle_attach,
@@ -620,6 +626,8 @@ esp_err_t ghota_update(ghota_client_handle_t *handle)
         goto ota_end;
     }
 
+    // ABSTRACTION: ota_validate_header(???)
+
     esp_app_desc_t app_desc;
     err = esp_https_ota_get_img_desc(https_ota_handle, &app_desc);
     if (err != ESP_OK)
@@ -636,6 +644,7 @@ esp_err_t ghota_update(ghota_client_handle_t *handle)
     int last_progress = -1;
     while (1)
     {
+        // ABSTRACTION: ota_download(???)
         err = esp_https_ota_perform(https_ota_handle);
         if (err != ESP_ERR_HTTPS_OTA_IN_PROGRESS)
         {
@@ -652,6 +661,7 @@ esp_err_t ghota_update(ghota_client_handle_t *handle)
         }
     }
 
+    // ABSTRACTION: ota_verify_download(???)
     if (esp_https_ota_is_complete_data_received(https_ota_handle) != true)
     {
         // the OTA image was not completely received and user can customise the response to this situation.
@@ -659,6 +669,7 @@ esp_err_t ghota_update(ghota_client_handle_t *handle)
     }
     else
     {
+        // ABSTRACTION: ota_finish(???)
         ota_finish_err = esp_https_ota_finish(https_ota_handle);
         if ((err == ESP_OK) && (ota_finish_err == ESP_OK))
         {
@@ -699,6 +710,7 @@ esp_err_t ghota_update(ghota_client_handle_t *handle)
     }
 
 ota_end:
+    // ABSTRACTION: ota_abort(???)
     esp_https_ota_abort(https_ota_handle);
     ESP_LOGE(TAG, "ESP_HTTPS_OTA upgrade failed");
     ESP_ERROR_CHECK(esp_event_post(GHOTA_EVENTS, GHOTA_EVENT_UPDATE_FAILED, NULL, 0, portMAX_DELAY));
