@@ -4,6 +4,8 @@
 #include <esp_err.h>
 #include <esp_event.h>
 #include "semver.h"
+#include "esp_ghota_config.h"
+#include "esp_ghota_client.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,21 +32,6 @@ typedef enum
     GHOTA_EVENT_STORAGE_UPDATE_PROGRESS = 0x400, /*!< Github OTA storage update progress */
     GHOTA_EVENT_PENDING_REBOOT = 0x800, /*!< Github OTA pending reboot */
 } ghota_event_e;
-
-/**
- * @brief Github OTA Configuration
- */
-typedef struct ghota_config_t {
-    char filenamematch[CONFIG_MAX_FILENAME_LEN]; /*!< Filename to match against on Github indicating this is a firmware file */
-    char storagenamematch[CONFIG_MAX_FILENAME_LEN]; /*!< Filename to match against on Github indicating this is a storage file */
-    char storagepartitionname[17]; /*!< Name of the storage partition to update */
-    char *hostname; /*!< Hostname of the Github server. Defaults to api.github.com*/
-    char *orgname; /*!< Name of the Github organization */
-    char *reponame; /*!< Name of the Github repository */
-    uint32_t updateInterval; /*!< Interval in Minutes to check for updates if using the ghota_start_update_timer function */
-} ghota_config_t;
-
-typedef struct ghota_client_handle_t ghota_client_handle_t;
 
 /**
  * @brief  Initialize the github ota client

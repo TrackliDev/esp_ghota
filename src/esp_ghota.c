@@ -16,6 +16,7 @@
 #include <sdkconfig.h>
 #include "esp_ghota.h"
 #include "lwjson.h"
+#include "interface/ghota_interface.h"
 
 static const char *TAG = "GHOTA";
 
@@ -26,7 +27,7 @@ ESP_EVENT_DEFINE_BASE(GHOTA_EVENTS);
 #else
 #define PRICONTENT_LENGTH PRId32
 #endif
-typedef struct ghota_client_handle_t
+typedef struct ghota_client_handle_t // TODO: delete
 {
     ghota_config_t config;
     char *username;
@@ -49,6 +50,7 @@ typedef struct ghota_client_handle_t
     uint32_t countdown;
     TaskHandle_t task_handle;
     const esp_partition_t *storage_partition;
+    ghota_interface_t *interface;
 } ghota_client_handle_t;
 
 enum release_flags
@@ -319,7 +321,7 @@ esp_err_t ghota_check(ghota_client_handle_t *handle)
     char url[CONFIG_MAX_URL_LEN];
     snprintf(url, CONFIG_MAX_URL_LEN, "https://%s/repos/%s/%s/releases/latest", handle->config.hostname, handle->config.orgname, handle->config.reponame);
 
-    // ABSTRACTION: get_info(&stream_parser)
+    // ABSTRACTION: handle->interface->get_release_info(handle, url, &stream_parser);
 
     esp_http_client_config_t httpconfig = {
         .url = url,
