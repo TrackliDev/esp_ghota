@@ -12,9 +12,10 @@ extern "C"
     typedef struct ghota_interface
     {
         esp_err_t (*get_release_info)(
-            ghota_client_handle_t *,
-            char *,
-            lwjson_stream_parser_t *);
+            ghota_client_handle_t *,  // handle
+            char *,                   // url
+            lwjson_stream_parser_t *  // JSON stream parser
+        );
     } ghota_interface_t;
 
 #ifdef __cplusplus

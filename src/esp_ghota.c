@@ -27,31 +27,6 @@ ESP_EVENT_DEFINE_BASE(GHOTA_EVENTS);
 #else
 #define PRICONTENT_LENGTH PRId32
 #endif
-typedef struct ghota_client_handle_t // TODO: delete
-{
-    ghota_config_t config;
-    char *username;
-    char *token;
-    struct
-    {
-        char tag_name[CONFIG_MAX_FILENAME_LEN];
-        char name[CONFIG_MAX_FILENAME_LEN];
-        char url[CONFIG_MAX_URL_LEN];
-        char storageurl[CONFIG_MAX_URL_LEN];
-        uint8_t flags;
-    } result;
-    struct
-    {
-        char name[CONFIG_MAX_FILENAME_LEN];
-        char url[CONFIG_MAX_URL_LEN];
-    } scratch;
-    semver_t current_version;
-    semver_t latest_version;
-    uint32_t countdown;
-    TaskHandle_t task_handle;
-    const esp_partition_t *storage_partition;
-    ghota_interface_t *interface;
-} ghota_client_handle_t;
 
 enum release_flags
 {
@@ -64,56 +39,55 @@ enum release_flags
 
 SemaphoreHandle_t ghota_lock = NULL;
 
-static void SetFlag(ghota_client_handle_t *handle, enum release_flags flag)
+static void SetFlag(
+    ghota_client_handle_t *handle, 
+    enum release_flags flag)
 {
-    handle->result.flags |= flag;
+    ghota_client_set_result_flag(
+        handle, flag);
 }
-static bool GetFlag(ghota_client_handle_t *handle, enum release_flags flag)
+static bool GetFlag(
+    ghota_client_handle_t *handle, 
+    enum release_flags flag)
 {
-    return handle->result.flags & flag;
+    return ghota_client_get_result_flag(
+        handle, flag);
 }
 
-static void ClearFlag(ghota_client_handle_t *handle, enum release_flags flag)
+static void ClearFlag(
+    ghota_client_handle_t *handle, 
+    enum release_flags flag)
 {
-    handle->result.flags &= ~flag;
+    ghota_client_clear_result_flag(
+        handle, flag);
 }
 
-ghota_client_handle_t *ghota_init(ghota_config_t *newconfig)
+ghota_client_handle_t *ghota_init(
+    ghota_config_t *newconfig)
 {
     if (!ghota_lock)
     {
         ghota_lock = xSemaphoreCreateMutex();
     }
-    if (xSemaphoreTake(ghota_lock, pdMS_TO_TICKS(1000)) != pdPASS)
+    if (xSemaphoreTake(
+        ghota_lock, 
+        pdMS_TO_TICKS(1000)) != pdPASS)
     {
         ESP_LOGE(TAG, "Failed to take lock");
         return NULL;
     }
-    ghota_client_handle_t *handle = malloc(sizeof(ghota_client_handle_t));
+    ghota_client_handle_t *handle = malloc(
+        ghota_client_get_handle_size());
     if (handle == NULL)
     {
-        ESP_LOGE(TAG, "Failed to allocate memory for client handle");
+        ESP_LOGE(
+            TAG, 
+            "Failed to allocate memory for client handle");
         xSemaphoreGive(ghota_lock);
         return NULL;
     }
-    bzero(handle, sizeof(ghota_client_handle_t));
-    strncpy(handle->config.filenamematch, newconfig->filenamematch, CONFIG_MAX_FILENAME_LEN);
-    strncpy(handle->config.storagenamematch, newconfig->storagenamematch, CONFIG_MAX_FILENAME_LEN);
-    strncpy(handle->config.storagepartitionname, newconfig->storagepartitionname, 17);
-    if (newconfig->hostname == NULL)
-        asprintf(&handle->config.hostname, CONFIG_GITHUB_HOSTNAME);
-    else
-        asprintf(&handle->config.hostname, newconfig->hostname);
-
-    if (newconfig->orgname == NULL)
-        asprintf(&handle->config.orgname, CONFIG_GITHUB_OWNER);
-    else
-        asprintf(&handle->config.orgname, newconfig->orgname);
-
-    if (newconfig->reponame == NULL)
-        asprintf(&handle->config.reponame, CONFIG_GITHUB_REPO);
-    else
-        asprintf(&handle->config.reponame, newconfig->reponame);
+    bzero(handle, ghota_client_get_handle_size());
+    ghota_client_set_config(handle, newconfig);
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
     const esp_app_desc_t *app_desc = esp_app_get_description();
 #else
