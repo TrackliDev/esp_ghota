@@ -1,9 +1,6 @@
 #include "esp_ghota_client.h"
 #include "esp_ghota_config.h"
 #include "sdkconfig.h"
-#include "semver.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 #include "interface/ghota_interface.h"
 #include "esp_partition.h"
 
@@ -52,6 +49,13 @@ void ghota_client_set_result_flag(
     handle->result.flags |= flag;
 }
 
+void ghota_client_set_result_flags(
+    ghota_client_handle_t *handle,
+    uint8_t value)
+{
+    handle->result.flags = value;
+}
+
 uint8_t ghota_client_get_result_flag(
     ghota_client_handle_t *handle,
     uint8_t flag)
@@ -76,42 +80,77 @@ void ghota_client_set_config(
     ghota_config_t *config)
 {
     strncpy(
-        handle->config.filenamematch, 
-        config->filenamematch, 
+        handle->config.filenamematch,
+        config->filenamematch,
         CONFIG_MAX_FILENAME_LEN);
     strncpy(
-        handle->config.storagenamematch, 
-        config->storagenamematch, 
+        handle->config.storagenamematch,
+        config->storagenamematch,
         CONFIG_MAX_FILENAME_LEN);
     strncpy(
-        handle->config.storagepartitionname, 
-        config->storagepartitionname, 
+        handle->config.storagepartitionname,
+        config->storagepartitionname,
         17);
 
     if (config->hostname == NULL)
         asprintf(
-            &handle->config.hostname, 
+            &handle->config.hostname,
             CONFIG_GITHUB_HOSTNAME);
     else
         asprintf(
-            &handle->config.hostname, 
+            &handle->config.hostname,
             config->hostname);
 
     if (config->orgname == NULL)
         asprintf(
-            &handle->config.orgname, 
+            &handle->config.orgname,
             CONFIG_GITHUB_OWNER);
     else
         asprintf(
-            &handle->config.orgname, 
+            &handle->config.orgname,
             config->orgname);
 
     if (config->reponame == NULL)
         asprintf(
-            &handle->config.reponame, 
+            &handle->config.reponame,
             CONFIG_GITHUB_REPO);
     else
         asprintf(
-            &handle->config.reponame, 
+            &handle->config.reponame,
             config->reponame);
+
+    handle->config.updateInterval =
+        config->updateInterval;
+}
+
+semver_t ghota_client_get_current_version(
+    ghota_client_handle_t *handle)
+{
+    return handle->current_version;
+}
+
+void ghota_client_set_current_version(
+    ghota_client_handle_t *handle,
+    semver_t curr_ver)
+{
+    handle->current_version = curr_ver;
+}
+
+void ghota_client_set_task_handle(
+    ghota_client_handle_t *client_handle,
+    TaskHandle_t task_handle)
+{
+    client_handle->task_handle = task_handle;
+}
+
+ghota_config_t ghota_client_get_config(
+    ghota_client_handle_t *handle)
+{
+    return handle->config;
+}
+
+semver_t ghota_client_get_latest_version(
+    ghota_client_handle_t *handle)
+{
+    return handle->latest_version;
 }

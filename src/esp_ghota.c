@@ -40,14 +40,14 @@ enum release_flags
 SemaphoreHandle_t ghota_lock = NULL;
 
 static void SetFlag(
-    ghota_client_handle_t *handle, 
+    ghota_client_handle_t *handle,
     enum release_flags flag)
 {
     ghota_client_set_result_flag(
         handle, flag);
 }
 static bool GetFlag(
-    ghota_client_handle_t *handle, 
+    ghota_client_handle_t *handle,
     enum release_flags flag)
 {
     return ghota_client_get_result_flag(
@@ -55,7 +55,7 @@ static bool GetFlag(
 }
 
 static void ClearFlag(
-    ghota_client_handle_t *handle, 
+    ghota_client_handle_t *handle,
     enum release_flags flag)
 {
     ghota_client_clear_result_flag(
@@ -70,8 +70,8 @@ ghota_client_handle_t *ghota_init(
         ghota_lock = xSemaphoreCreateMutex();
     }
     if (xSemaphoreTake(
-        ghota_lock, 
-        pdMS_TO_TICKS(1000)) != pdPASS)
+            ghota_lock,
+            pdMS_TO_TICKS(1000)) != pdPASS)
     {
         ESP_LOGE(TAG, "Failed to take lock");
         return NULL;
@@ -81,7 +81,7 @@ ghota_client_handle_t *ghota_init(
     if (handle == NULL)
     {
         ESP_LOGE(
-            TAG, 
+            TAG,
             "Failed to allocate memory for client handle");
         xSemaphoreGive(ghota_lock);
         return NULL;
@@ -93,44 +93,61 @@ ghota_client_handle_t *ghota_init(
 #else
     const esp_app_desc_t *app_desc = esp_ota_get_app_description();
 #endif
-    if (semver_parse(app_desc->version, &handle->current_version))
+    semver_t curr_ver;
+    if (semver_parse(app_desc->version, &curr_ver))
     {
         ESP_LOGE(TAG, "Failed to parse current version");
         ghota_free(handle);
         xSemaphoreGive(ghota_lock);
         return NULL;
     }
-    handle->result.flags = 0;
+    ghota_client_set_current_version(
+        handle, curr_ver);
+    ghota_client_set_result_flags(handle, 0);
+    ghota_client_set_task_handle(handle, NULL);
 
-    //    if (newconfig->updateInterval < 60) {
-    //        ESP_LOGE(TAG, "Update interval must be at least 60 Minutes");
-    //        newconfig->updateInterval = 60;
-    //    }
-    handle->config.updateInterval = newconfig->updateInterval;
-
-    handle->task_handle = NULL;
     xSemaphoreGive(ghota_lock);
 
     return handle;
 }
 
-esp_err_t ghota_free(ghota_client_handle_t *handle)
+esp_err_t ghota_free(
+    ghota_client_handle_t *handle)
 {
-    if (xSemaphoreTake(ghota_lock, pdMS_TO_TICKS(1000)) != pdPASS)
+    if (xSemaphoreTake(
+            ghota_lock,
+            pdMS_TO_TICKS(1000)) != pdPASS)
     {
         ESP_LOGE(TAG, "Failed to take lock");
         return ESP_FAIL;
     }
-    free(handle->config.hostname);
-    free(handle->config.orgname);
-    free(handle->config.reponame);
-    if (handle->username)
-        free(handle->username);
-    if (handle->token)
-        free(handle->token);
-    semver_free(&handle->current_version);
-    semver_free(&handle->latest_version);
+
+    ghota_config_t config =
+        ghota_client_get_config(handle);
+    free(config.hostname);
+    free(config.orgname);
+    free(config.reponame);
+
+    char *username =
+        ghota_client_get_username(handle);
+    char *token =
+        ghota_client_get_token(handle);
+
+    if (username)
+        free(username);
+    if (token)
+        free(token);
+
+    semver_t curr_ver = 
+        ghota_client_get_current_version(handle);
+    semver_t latest_ver = 
+        ghota_client_get_latest_version(handle);
+
+    semver_free(&curr_ver);
+    semver_free(&latest_ver);
+
     xSemaphoreGive(ghota_lock);
+
     return ESP_OK;
 }
 
@@ -317,7 +334,7 @@ esp_err_t ghota_check(ghota_client_handle_t *handle)
     esp_err_t err = esp_http_client_perform(client);
     if (err == ESP_OK)
     {
-        ESP_LOGD(TAG, "HTTP GET Status = %d, content_length = %" PRICONTENT_LENGTH ,
+        ESP_LOGD(TAG, "HTTP GET Status = %d, content_length = %" PRICONTENT_LENGTH,
                  esp_http_client_get_status_code(client),
                  esp_http_client_get_content_length(client));
     }

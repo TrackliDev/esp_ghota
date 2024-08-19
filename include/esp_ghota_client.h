@@ -1,6 +1,10 @@
 #ifndef GITHUB_OTA_CLIENT_H
 #define GITHUB_OTA_CLIENT_H
 
+#include "semver.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
 #ifdef __cplusplus
 extern "C"
 {
@@ -20,6 +24,10 @@ extern "C"
         ghota_client_handle_t *handle,
         uint8_t flag);
 
+    void ghota_client_set_result_flags(
+        ghota_client_handle_t *handle,
+        uint8_t value);
+
     uint8_t ghota_client_get_result_flag(
         ghota_client_handle_t *handle,
         uint8_t flag);
@@ -32,7 +40,24 @@ extern "C"
 
     void ghota_client_set_config(
         ghota_client_handle_t *handle,
-        ghota_config_t *config)
+        ghota_config_t *config);
+
+    semver_t ghota_client_get_current_version(
+        ghota_client_handle_t *handle);
+
+    void ghota_client_set_current_version(
+        ghota_client_handle_t *handle, 
+        semver_t curr_ver);
+
+    void ghota_client_set_task_handle(
+        ghota_client_handle_t *client_handle, 
+        TaskHandle_t task_handle);
+
+    ghota_config_t ghota_client_get_config(
+        ghota_client_handle_t *handle);
+
+    semver_t ghota_client_get_latest_version(
+        ghota_client_handle_t *handle)
 
 #ifdef __cplusplus
 }
