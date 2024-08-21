@@ -122,11 +122,11 @@ esp_err_t ghota_free(
         return ESP_FAIL;
     }
 
-    ghota_config_t config =
+    ghota_config_t *config =
         ghota_client_get_config(handle);
-    free(config.hostname);
-    free(config.orgname);
-    free(config.reponame);
+    free(config->hostname);
+    free(config->orgname);
+    free(config->reponame);
 
     char *username =
         ghota_client_get_username(handle);
@@ -138,76 +138,132 @@ esp_err_t ghota_free(
     if (token)
         free(token);
 
-    semver_t curr_ver = 
+    semver_t *curr_ver =
         ghota_client_get_current_version(handle);
-    semver_t latest_ver = 
+    semver_t *latest_ver =
         ghota_client_get_latest_version(handle);
 
-    semver_free(&curr_ver);
-    semver_free(&latest_ver);
+    semver_free(curr_ver);
+    semver_free(latest_ver);
 
     xSemaphoreGive(ghota_lock);
 
     return ESP_OK;
 }
 
-esp_err_t ghota_set_auth(ghota_client_handle_t *handle, const char *username, const char *password)
+esp_err_t ghota_set_auth(
+    ghota_client_handle_t *handle,
+    const char *username,
+    const char *password)
 {
-    if (xSemaphoreTake(ghota_lock, pdMS_TO_TICKS(1000)) != pdPASS)
+    if (xSemaphoreTake(
+            ghota_lock,
+            pdMS_TO_TICKS(1000)) != pdPASS)
     {
         ESP_LOGE(TAG, "Failed to take lock");
         return ESP_FAIL;
     }
-    asprintf(&handle->username, "%s", username);
-    asprintf(&handle->token, "%s", password);
+
+    ghota_client_set_username(handle, username);
+    ghota_client_set_token(handle, password);
+
     xSemaphoreGive(ghota_lock);
+
     return ESP_OK;
 }
 
-static void lwjson_callback(lwjson_stream_parser_t *jsp, lwjson_stream_type_t type)
+static void lwjson_callback(
+    lwjson_stream_parser_t *jsp,
+    lwjson_stream_type_t type)
 {
     if (jsp->udata == NULL)
     {
-        ESP_LOGE(TAG, "No user data for callback");
+        ESP_LOGE(
+            TAG,
+            "No user data for callback");
         return;
     }
-    ghota_client_handle_t *handle = (ghota_client_handle_t *)jsp->udata;
+    ghota_client_handle_t *handle =
+        (ghota_client_handle_t *)jsp->udata;
 #ifdef DEBUG
-    ESP_LOGI(TAG, "Lwjson Called: %d %d %d %d", jsp->stack_pos, jsp->stack[jsp->stack_pos - 1].type, type, handle->result.flags);
-    if (jsp->stack[jsp->stack_pos - 1].type == LWJSON_STREAM_TYPE_KEY)
+    ESP_LOGI(
+        TAG,
+        "Lwjson Called: %d %d %d %d",
+        jsp->stack_pos,
+        jsp->stack[jsp->stack_pos - 1].type,
+        type,
+        handle->result.flags);
+    if (jsp->stack[jsp->stack_pos - 1].type ==
+        LWJSON_STREAM_TYPE_KEY)
     { /* We need key to be before */
-        ESP_LOGI(TAG, "Key: %s", jsp->stack[jsp->stack_pos - 1].meta.name);
+        ESP_LOGI(
+            TAG,
+            "Key: %s",
+            jsp->stack[jsp->stack_pos - 1].meta.name);
     }
 #endif
     /* Get a value corresponsing to "tag_name" key */
-    if (!GetFlag(handle, GHOTA_RELEASE_GOT_TAG))
+    if (!GetFlag(
+            handle,
+            GHOTA_RELEASE_GOT_TAG))
     {
-        if (jsp->stack_pos >= 2                                /* Number of stack entries must be high */
-            && jsp->stack[0].type == LWJSON_STREAM_TYPE_OBJECT /* First must be object */
-            && jsp->stack[1].type == LWJSON_STREAM_TYPE_KEY    /* We need key to be before */
-            && strcasecmp(jsp->stack[1].meta.name, "tag_name") == 0)
+        if (jsp->stack_pos >= 2 /* Number of stack entries must be high */
+            && jsp->stack[0].type ==
+                   LWJSON_STREAM_TYPE_OBJECT /* First must be object */
+            && jsp->stack[1].type ==
+                   LWJSON_STREAM_TYPE_KEY /* We need key to be before */
+            && strcasecmp(
+                   jsp->stack[1].meta.name,
+                   "tag_name") == 0)
         {
-            ESP_LOGD(TAG, "Got '%s' with value '%s'", jsp->stack[1].meta.name, jsp->data.str.buff);
-            strncpy(handle->result.tag_name, jsp->data.str.buff, CONFIG_MAX_FILENAME_LEN);
+            ESP_LOGD(
+                TAG,
+                "Got '%s' with value '%s'",
+                jsp->stack[1].meta.name,
+                jsp->data.str.buff);
+            ghota_client_set_tag_name(
+                handle,
+                jsp->data.str.buff);
             SetFlag(handle, GHOTA_RELEASE_GOT_TAG);
         }
     }
-    if (!GetFlag(handle, GHOTA_RELEASE_VALID_ASSET) || !GetFlag(handle, GHOTA_RELEASE_GOT_STORAGE))
+    if (!GetFlag(handle, GHOTA_RELEASE_VALID_ASSET) ||
+        !GetFlag(handle, GHOTA_RELEASE_GOT_STORAGE))
     {
-        if (jsp->stack_pos == 5 && jsp->stack[0].type == LWJSON_STREAM_TYPE_OBJECT && jsp->stack[1].type == LWJSON_STREAM_TYPE_KEY && strcasecmp(jsp->stack[1].meta.name, "assets") == 0 && jsp->stack[2].type == LWJSON_STREAM_TYPE_ARRAY && jsp->stack[3].type == LWJSON_STREAM_TYPE_OBJECT && jsp->stack[4].type == LWJSON_STREAM_TYPE_KEY)
+        if (jsp->stack_pos == 5 && 
+            jsp->stack[0].type == LWJSON_STREAM_TYPE_OBJECT && 
+            jsp->stack[1].type == LWJSON_STREAM_TYPE_KEY && 
+            strcasecmp(jsp->stack[1].meta.name, "assets") == 0 && 
+            jsp->stack[2].type == LWJSON_STREAM_TYPE_ARRAY && 
+            jsp->stack[3].type == LWJSON_STREAM_TYPE_OBJECT && 
+            jsp->stack[4].type == LWJSON_STREAM_TYPE_KEY)
         {
-            ESP_LOGD(TAG, "Assets Got key '%s' with value '%s'", jsp->stack[jsp->stack_pos - 1].meta.name, jsp->data.str.buff);
+            ESP_LOGD(
+                TAG, 
+                "Assets Got key '%s' with value '%s'", 
+                jsp->stack[jsp->stack_pos - 1].meta.name, 
+                jsp->data.str.buff);
             if (strcasecmp(jsp->stack[4].meta.name, "name") == 0)
             {
-                strncpy(handle->scratch.name, jsp->data.str.buff, CONFIG_MAX_FILENAME_LEN);
+                ghota_client_set_scratch_name(
+                    handle, 
+                    jsp->data.str.buff);
                 SetFlag(handle, GHOTA_RELEASE_GOT_FNAME);
-                ESP_LOGD(TAG, "Got Filename for Asset: %s", handle->scratch.name);
+                ESP_LOGD(
+                    TAG, 
+                    "Got Filename for Asset: %s", 
+                    ghota_client_get_scratch_name(handle));
             }
             if (strcasecmp(jsp->stack[4].meta.name, "url") == 0)
             {
-                strncpy(handle->scratch.url, jsp->data.str.buff, CONFIG_MAX_URL_LEN);
+                ghota_client_set_scratch_url(
+                    handle, 
+                    jsp->data.str.buff);
                 SetFlag(handle, GHOTA_RELEASE_GOT_URL);
-                ESP_LOGD(TAG, "Got URL for Asset: %s", handle->scratch.url);
+                ESP_LOGD(
+                    TAG, 
+                    "Got URL for Asset: %s", 
+                    ghota_client_get_scratch_url(handle));
             }
             /* Now test if we got both name an download url */
             if (GetFlag(handle, GHOTA_RELEASE_GOT_FNAME) && GetFlag(handle, GHOTA_RELEASE_GOT_URL))

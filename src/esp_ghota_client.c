@@ -36,10 +36,26 @@ char *ghota_client_get_username(
     return handle->username;
 }
 
+int ghota_client_set_username(
+    ghota_client_handle_t *handle,
+    char *username)
+{
+    return asprintf(
+        &handle->username, "%s", username);
+}
+
 char *ghota_client_get_token(
     ghota_client_handle_t *handle)
 {
     return handle->token;
+}
+
+int ghota_client_set_token(
+    ghota_client_handle_t *handle,
+    char *token)
+{
+    return asprintf(
+        &handle->token, "%s", token);
 }
 
 void ghota_client_set_result_flag(
@@ -73,6 +89,12 @@ void ghota_client_clear_result_flag(
 size_t ghota_client_get_handle_size()
 {
     return sizeof(ghota_client_handle_t);
+}
+
+ghota_config_t *ghota_client_get_config(
+    ghota_client_handle_t *handle)
+{
+    return &handle->config;
 }
 
 void ghota_client_set_config(
@@ -123,10 +145,10 @@ void ghota_client_set_config(
         config->updateInterval;
 }
 
-semver_t ghota_client_get_current_version(
+semver_t *ghota_client_get_current_version(
     ghota_client_handle_t *handle)
 {
-    return handle->current_version;
+    return &handle->current_version;
 }
 
 void ghota_client_set_current_version(
@@ -143,14 +165,50 @@ void ghota_client_set_task_handle(
     client_handle->task_handle = task_handle;
 }
 
-ghota_config_t ghota_client_get_config(
+semver_t *ghota_client_get_latest_version(
     ghota_client_handle_t *handle)
 {
-    return handle->config;
+    return &handle->latest_version;
 }
 
-semver_t ghota_client_get_latest_version(
+void ghota_client_set_tag_name(
+    ghota_client_handle_t *handle,
+    char *name)
+{
+    strncpy(
+        handle->result.tag_name,
+        name,
+        CONFIG_MAX_FILENAME_LEN);
+}
+
+char *ghota_client_get_scratch_name(
     ghota_client_handle_t *handle)
 {
-    return handle->latest_version;
+    return handle->scratch.name;
+}
+
+void ghota_client_set_scratch_name(
+    ghota_client_handle_t *handle,
+    char *name)
+{
+    strncpy(
+        handle->scratch.name,
+        name,
+        CONFIG_MAX_FILENAME_LEN);
+}
+
+char *ghota_client_get_scratch_url(
+    ghota_client_handle_t *handle)
+{
+    return handle->scratch.url;
+}
+
+void ghota_client_set_scratch_url(
+    ghota_client_handle_t *handle,
+    char *url)
+{
+    strncpy(
+        handle->scratch.url,
+        url,
+        CONFIG_MAX_URL_LEN);
 }

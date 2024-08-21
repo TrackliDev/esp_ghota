@@ -17,8 +17,16 @@ extern "C"
     char *ghota_client_get_username(
         ghota_client_handle_t *handle);
 
+    int ghota_client_set_username(
+        ghota_client_handle_t *handle,
+        char *username);
+
     char *ghota_client_get_token(
         ghota_client_handle_t *handle);
+
+    int ghota_client_set_token(
+        ghota_client_handle_t *handle,
+        char *token);
 
     void ghota_client_set_result_flag(
         ghota_client_handle_t *handle,
@@ -38,26 +46,44 @@ extern "C"
 
     size_t ghota_client_get_handle_size();
 
+    ghota_config_t *ghota_client_get_config(
+        ghota_client_handle_t *handle);
+
     void ghota_client_set_config(
         ghota_client_handle_t *handle,
         ghota_config_t *config);
 
-    semver_t ghota_client_get_current_version(
+    semver_t *ghota_client_get_current_version(
         ghota_client_handle_t *handle);
 
     void ghota_client_set_current_version(
-        ghota_client_handle_t *handle, 
+        ghota_client_handle_t *handle,
         semver_t curr_ver);
 
     void ghota_client_set_task_handle(
-        ghota_client_handle_t *client_handle, 
+        ghota_client_handle_t *client_handle,
         TaskHandle_t task_handle);
 
-    ghota_config_t ghota_client_get_config(
+    semver_t *ghota_client_get_latest_version(
         ghota_client_handle_t *handle);
 
-    semver_t ghota_client_get_latest_version(
-        ghota_client_handle_t *handle)
+    void ghota_client_set_tag_name(
+        ghota_client_handle_t *handle,
+        char *name);
+
+    char *ghota_client_get_scratch_name(
+        ghota_client_handle_t *handle);
+
+    void ghota_client_set_scratch_name(
+        ghota_client_handle_t *handle,
+        char *name);
+
+    char *ghota_client_get_scratch_url(
+        ghota_client_handle_t *handle);
+
+    void ghota_client_set_scratch_url(
+        ghota_client_handle_t *handle,
+        char *url);
 
 #ifdef __cplusplus
 }
