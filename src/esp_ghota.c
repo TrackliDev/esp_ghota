@@ -221,7 +221,7 @@ static void lwjson_callback(
                 "Got '%s' with value '%s'",
                 jsp->stack[1].meta.name,
                 jsp->data.str.buff);
-            ghota_client_set_tag_name(
+            ghota_client_set_result_tag_name(
                 handle,
                 jsp->data.str.buff);
             SetFlag(handle, GHOTA_RELEASE_GOT_TAG);
@@ -230,62 +230,94 @@ static void lwjson_callback(
     if (!GetFlag(handle, GHOTA_RELEASE_VALID_ASSET) ||
         !GetFlag(handle, GHOTA_RELEASE_GOT_STORAGE))
     {
-        if (jsp->stack_pos == 5 && 
-            jsp->stack[0].type == LWJSON_STREAM_TYPE_OBJECT && 
-            jsp->stack[1].type == LWJSON_STREAM_TYPE_KEY && 
-            strcasecmp(jsp->stack[1].meta.name, "assets") == 0 && 
-            jsp->stack[2].type == LWJSON_STREAM_TYPE_ARRAY && 
-            jsp->stack[3].type == LWJSON_STREAM_TYPE_OBJECT && 
+        if (jsp->stack_pos == 5 &&
+            jsp->stack[0].type == LWJSON_STREAM_TYPE_OBJECT &&
+            jsp->stack[1].type == LWJSON_STREAM_TYPE_KEY &&
+            strcasecmp(jsp->stack[1].meta.name, "assets") == 0 &&
+            jsp->stack[2].type == LWJSON_STREAM_TYPE_ARRAY &&
+            jsp->stack[3].type == LWJSON_STREAM_TYPE_OBJECT &&
             jsp->stack[4].type == LWJSON_STREAM_TYPE_KEY)
         {
             ESP_LOGD(
-                TAG, 
-                "Assets Got key '%s' with value '%s'", 
-                jsp->stack[jsp->stack_pos - 1].meta.name, 
+                TAG,
+                "Assets Got key '%s' with value '%s'",
+                jsp->stack[jsp->stack_pos - 1].meta.name,
                 jsp->data.str.buff);
             if (strcasecmp(jsp->stack[4].meta.name, "name") == 0)
             {
                 ghota_client_set_scratch_name(
-                    handle, 
+                    handle,
                     jsp->data.str.buff);
                 SetFlag(handle, GHOTA_RELEASE_GOT_FNAME);
                 ESP_LOGD(
-                    TAG, 
-                    "Got Filename for Asset: %s", 
+                    TAG,
+                    "Got Filename for Asset: %s",
                     ghota_client_get_scratch_name(handle));
             }
             if (strcasecmp(jsp->stack[4].meta.name, "url") == 0)
             {
                 ghota_client_set_scratch_url(
-                    handle, 
+                    handle,
                     jsp->data.str.buff);
                 SetFlag(handle, GHOTA_RELEASE_GOT_URL);
                 ESP_LOGD(
-                    TAG, 
-                    "Got URL for Asset: %s", 
+                    TAG,
+                    "Got URL for Asset: %s",
                     ghota_client_get_scratch_url(handle));
             }
             /* Now test if we got both name an download url */
-            if (GetFlag(handle, GHOTA_RELEASE_GOT_FNAME) && GetFlag(handle, GHOTA_RELEASE_GOT_URL))
+            if (GetFlag(handle, GHOTA_RELEASE_GOT_FNAME) &&
+                GetFlag(handle, GHOTA_RELEASE_GOT_URL))
             {
-                ESP_LOGD(TAG, "Testing Firmware filenames %s -> %s - Matching Filename against %s and %s", handle->scratch.name, handle->scratch.url, handle->config.filenamematch, handle->config.storagenamematch);
+                ghota_config_t *config =
+                    ghota_client_get_config(handle);
+                char *scratch_name =
+                    ghota_client_get_scratch_name(handle);
+                char *scratch_url =
+                    ghota_client_get_scratch_url(handle);
+
+                ESP_LOGD(
+                    TAG,
+                    "Testing Firmware filenames %s -> "
+                    "%s - Matching Filename against %s and %s",
+                    scratch_name,
+                    scratch_url,
+                    config->filenamematch,
+                    config->storagenamematch);
                 /* see if the filename matches */
-                if (!GetFlag(handle, GHOTA_RELEASE_VALID_ASSET) && fnmatch(handle->config.filenamematch, handle->scratch.name, 0) == 0)
+                if (!GetFlag(handle, GHOTA_RELEASE_VALID_ASSET) &&
+                    fnmatch(config->filenamematch, scratch_name, 0) == 0)
                 {
-                    strncpy(handle->result.name, handle->scratch.name, CONFIG_MAX_FILENAME_LEN);
-                    strncpy(handle->result.url, handle->scratch.url, CONFIG_MAX_URL_LEN);
-                    ESP_LOGD(TAG, "Valid Firmware Found: %s - %s", handle->result.name, handle->result.url);
+                    ghota_client_set_result_name(handle, scratch_name);
+                    ghota_client_set_result_url(handle, scratch_url);
+                    ESP_LOGD(
+                        TAG,
+                        "Valid Firmware Found: %s - %s",
+                        ghota_client_get_result_name(handle),
+                        ghota_client_get_result_url(handle));
                     SetFlag(handle, GHOTA_RELEASE_VALID_ASSET);
                 }
-                else if (!GetFlag(handle, GHOTA_RELEASE_GOT_STORAGE) && fnmatch(handle->config.storagenamematch, handle->scratch.name, 0) == 0)
+                else if (!GetFlag(handle, GHOTA_RELEASE_GOT_STORAGE) &&
+                         fnmatch(
+                             config->storagenamematch,
+                             scratch_name,
+                             0) == 0)
                 {
-                    strncpy(handle->result.storageurl, handle->scratch.url, CONFIG_MAX_URL_LEN);
-                    ESP_LOGD(TAG, "Valid Storage Asset Found: %s - %s", handle->scratch.name, handle->result.storageurl);
+                    ghota_client_set_result_storage_url(
+                        handle, scratch_url);
+                    ESP_LOGD(
+                        TAG,
+                        "Valid Storage Asset Found: %s - %s",
+                        scratch_name,
+                        ghota_client_get_result_storage_url(handle));
                     SetFlag(handle, GHOTA_RELEASE_GOT_STORAGE);
                 }
                 else
                 {
-                    ESP_LOGD(TAG, "Invalid Asset Found: %s", handle->scratch.name);
+                    ESP_LOGD(
+                        TAG,
+                        "Invalid Asset Found: %s",
+                        scratch_name);
                     ClearFlag(handle, GHOTA_RELEASE_GOT_FNAME);
                     ClearFlag(handle, GHOTA_RELEASE_GOT_URL);
                 }
@@ -294,7 +326,8 @@ static void lwjson_callback(
     }
 }
 
-static esp_err_t _http_event_handler(esp_http_client_event_t *evt)
+static esp_err_t _http_event_handler(
+    esp_http_client_event_t *evt)
 {
     lwjsonr_t res;
 #pragma GCC diagnostic push
@@ -302,13 +335,22 @@ static esp_err_t _http_event_handler(esp_http_client_event_t *evt)
     switch (evt->event_id)
     {
     case HTTP_EVENT_ON_HEADER:
-        if (strncasecmp(evt->header_key, "x-ratelimit-remaining", strlen("x-ratelimit-remaining")) == 0)
+        if (strncasecmp(
+                evt->header_key,
+                "x-ratelimit-remaining",
+                strlen("x-ratelimit-remaining")) == 0)
         {
             int limit = atoi(evt->header_value);
-            ESP_LOGD(TAG, "Github API Rate Limit Remaining: %d", limit);
+            ESP_LOGD(
+                TAG,
+                "Github API Rate Limit Remaining: %d",
+                limit);
             if (limit < 10)
             {
-                ESP_LOGW(TAG, "Github API Rate Limit Remaining is low: %d", limit);
+                ESP_LOGW(
+                    TAG,
+                    "Github API Rate Limit Remaining is low: %d",
+                    limit);
             }
         }
         break;
@@ -318,8 +360,12 @@ static esp_err_t _http_event_handler(esp_http_client_event_t *evt)
             char *buf = evt->data;
             for (int i = 0; i < evt->data_len; i++)
             {
-                res = lwjson_stream_parse((lwjson_stream_parser_t *)evt->user_data, *buf);
-                if (!(res == lwjsonOK || res == lwjsonSTREAMDONE || res == lwjsonSTREAMINPROG))
+                res = lwjson_stream_parse(
+                    (lwjson_stream_parser_t *)evt->user_data,
+                    *buf);
+                if (!(res == lwjsonOK ||
+                      res == lwjsonSTREAMDONE ||
+                      res == lwjsonSTREAMINPROG))
                 {
                     ESP_LOGE(TAG, "Lwjson Error: %d", res);
                 }
@@ -330,11 +376,16 @@ static esp_err_t _http_event_handler(esp_http_client_event_t *evt)
     case HTTP_EVENT_DISCONNECTED:
     {
         int mbedtls_err = 0;
-        esp_err_t err = esp_tls_get_and_clear_last_error(evt->data, &mbedtls_err, NULL);
+        esp_err_t err = esp_tls_get_and_clear_last_error(
+            evt->data,
+            &mbedtls_err,
+            NULL);
         if (err != 0)
         {
-            ESP_LOGE(TAG, "Last esp error code: 0x%x", err);
-            ESP_LOGE(TAG, "Last mbedtls failure: 0x%x", mbedtls_err);
+            ESP_LOGE(
+                TAG, "Last esp error code: 0x%x", err);
+            ESP_LOGE(
+                TAG, "Last mbedtls failure: 0x%x", mbedtls_err);
         }
         break;
     }
@@ -343,30 +394,65 @@ static esp_err_t _http_event_handler(esp_http_client_event_t *evt)
     return ESP_OK;
 }
 
-esp_err_t ghota_check(ghota_client_handle_t *handle)
+esp_err_t ghota_check(
+    ghota_client_handle_t *handle)
 {
-    if (xSemaphoreTake(ghota_lock, pdMS_TO_TICKS(1000)) != pdPASS)
+    if (xSemaphoreTake(
+            ghota_lock,
+            pdMS_TO_TICKS(1000)) != pdPASS)
     {
         ESP_LOGE(TAG, "Failed to get lock");
         return ESP_FAIL;
     }
     ESP_LOGI(TAG, "Checking for new release");
-    ESP_ERROR_CHECK(esp_event_post(GHOTA_EVENTS, GHOTA_EVENT_START_CHECK, handle, sizeof(ghota_client_handle_t *), portMAX_DELAY));
+    esp_err_t err = esp_event_post(
+        GHOTA_EVENTS,
+        GHOTA_EVENT_START_CHECK,
+        handle,
+        sizeof(ghota_client_handle_t *),
+        portMAX_DELAY);
+    if (err != ESP_OK)
+    {
+        xSemaphoreGive(ghota_lock);
+        return err;
+    }
+
     lwjson_stream_parser_t stream_parser;
     lwjsonr_t res;
 
-    res = lwjson_stream_init(&stream_parser, lwjson_callback);
+    res = lwjson_stream_init(
+        &stream_parser,
+        lwjson_callback);
     if (res != lwjsonOK)
     {
-        ESP_LOGE(TAG, "Failed to initialize JSON parser: %d", res);
-        ESP_ERROR_CHECK(esp_event_post(GHOTA_EVENTS, GHOTA_EVENT_NOUPDATE_AVAILABLE, handle, sizeof(ghota_client_handle_t *), portMAX_DELAY));
+        ESP_LOGE(
+            TAG,
+            "Failed to initialize JSON parser: %d",
+            res);
+        err = esp_event_post(
+            GHOTA_EVENTS,
+            GHOTA_EVENT_NOUPDATE_AVAILABLE,
+            handle,
+            sizeof(ghota_client_handle_t *),
+            portMAX_DELAY);
         xSemaphoreGive(ghota_lock);
+        if (err != ESP_OK)
+            return err;
         return ESP_FAIL;
     }
     stream_parser.udata = (void *)handle;
 
+    ghota_config_t *config =
+        ghota_client_get_config(handle);
+
     char url[CONFIG_MAX_URL_LEN];
-    snprintf(url, CONFIG_MAX_URL_LEN, "https://%s/repos/%s/%s/releases/latest", handle->config.hostname, handle->config.orgname, handle->config.reponame);
+    snprintf(
+        url,
+        CONFIG_MAX_URL_LEN,
+        "https://%s/repos/%s/%s/releases/latest",
+        config->hostname,
+        config->orgname,
+        config->reponame);
 
     // ABSTRACTION: handle->interface->get_release_info(handle, url, &stream_parser);
 
@@ -376,97 +462,215 @@ esp_err_t ghota_check(ghota_client_handle_t *handle)
         .event_handler = _http_event_handler,
         .user_data = &stream_parser,
     };
-    if (handle->username)
+    char *username =
+        ghota_client_get_username(handle);
+
+    if (ghota_client_get_username(handle))
     {
-        ESP_LOGD(TAG, "Using Authenticated Request to %s", url);
-        httpconfig.username = handle->username;
-        httpconfig.password = handle->token;
+        ESP_LOGD(
+            TAG,
+            "Using Authenticated Request to %s",
+            url);
+        httpconfig.username = username;
+        httpconfig.password =
+            ghota_client_get_token(handle);
         httpconfig.auth_type = HTTP_AUTH_TYPE_BASIC;
     }
     ESP_LOGI(TAG, "Searching for Firmware from %s", url);
 
-    esp_http_client_handle_t client = esp_http_client_init(&httpconfig);
+    esp_http_client_handle_t client =
+        esp_http_client_init(&httpconfig);
 
     esp_err_t err = esp_http_client_perform(client);
     if (err == ESP_OK)
     {
-        ESP_LOGD(TAG, "HTTP GET Status = %d, content_length = %" PRICONTENT_LENGTH,
-                 esp_http_client_get_status_code(client),
-                 esp_http_client_get_content_length(client));
+        ESP_LOGD(
+            TAG,
+            "HTTP GET Status = %d, "
+            "content_length = %" PRICONTENT_LENGTH,
+            esp_http_client_get_status_code(client),
+            esp_http_client_get_content_length(client));
     }
     else
     {
-        ESP_LOGE(TAG, "HTTP GET request failed: %s", esp_err_to_name(err));
+        ESP_LOGE(
+            TAG,
+            "HTTP GET request failed: %s",
+            esp_err_to_name(err));
         esp_http_client_cleanup(client);
-        ESP_ERROR_CHECK(esp_event_post(GHOTA_EVENTS, GHOTA_EVENT_NOUPDATE_AVAILABLE, handle, sizeof(ghota_client_handle_t *), portMAX_DELAY));
+        err = esp_event_post(
+            GHOTA_EVENTS,
+            GHOTA_EVENT_NOUPDATE_AVAILABLE,
+            handle,
+            sizeof(ghota_client_handle_t *),
+            portMAX_DELAY);
         xSemaphoreGive(ghota_lock);
+        if (err != ESP_OK)
+            return err;
+
         return ESP_FAIL;
     }
     if (esp_http_client_get_status_code(client) == 200)
     {
         if (GetFlag(handle, GHOTA_RELEASE_VALID_ASSET))
         {
-            if (semver_parse(handle->result.tag_name, &handle->latest_version))
+            semver_t latest_version;
+            if (semver_parse(
+                    ghota_client_get_result_tag(handle),
+                    &latest_version))
             {
                 ESP_LOGE(TAG, "Failed to parse new version");
                 esp_http_client_cleanup(client);
-                ESP_ERROR_CHECK(esp_event_post(GHOTA_EVENTS, GHOTA_EVENT_NOUPDATE_AVAILABLE, handle, sizeof(ghota_client_handle_t *), portMAX_DELAY));
+                err = esp_event_post(
+                    GHOTA_EVENTS,
+                    GHOTA_EVENT_NOUPDATE_AVAILABLE,
+                    handle,
+                    sizeof(ghota_client_handle_t *),
+                    portMAX_DELAY);
                 xSemaphoreGive(ghota_lock);
+                if (err != ESP_OK)
+                    return err;
                 return ESP_FAIL;
             }
-            ESP_LOGI(TAG, "Current Version %d.%d.%d", handle->current_version.major, handle->current_version.minor, handle->current_version.patch);
-            ESP_LOGI(TAG, "New Version %d.%d.%d", handle->latest_version.major, handle->latest_version.minor, handle->latest_version.patch);
-            ESP_LOGI(TAG, "Asset: %s", handle->result.name);
-            ESP_LOGI(TAG, "Firmware URL: %s", handle->result.url);
-            if (strlen(handle->result.storageurl))
+            ghota_client_set_latest_version(
+                handle, latest_version);
+
+            semver_t *current_version =
+                ghota_client_get_current_version(handle);
+            ESP_LOGI(
+                TAG,
+                "Current Version %d.%d.%d",
+                current_version->major,
+                current_version->minor,
+                current_version->patch);
+            ESP_LOGI(
+                TAG,
+                "New Version %d.%d.%d",
+                latest_version.major,
+                latest_version.minor,
+                latest_version.patch);
+            ESP_LOGI(
+                TAG,
+                "Asset: %s",
+                ghota_client_get_result_name(handle));
+            ESP_LOGI(
+                TAG,
+                "Firmware URL: %s",
+                ghota_client_get_result_url(handle));
+            char *storage_url =
+                ghota_client_get_result_storage_url(handle);
+            if (strlen(storage_url))
             {
-                ESP_LOGI(TAG, "Storage URL: %s", handle->result.storageurl);
+                ESP_LOGI(
+                    TAG,
+                    "Storage URL: %s",
+                    storage_url);
             }
         }
         else
         {
-            ESP_LOGI(TAG, "Asset: No Valid Firmware Assets Found");
+            ESP_LOGI(
+                TAG,
+                "Asset: No Valid Firmware Assets Found");
             esp_http_client_cleanup(client);
-            ESP_ERROR_CHECK(esp_event_post(GHOTA_EVENTS, GHOTA_EVENT_NOUPDATE_AVAILABLE, handle, sizeof(ghota_client_handle_t *), portMAX_DELAY));
+            err = esp_event_post(
+                GHOTA_EVENTS,
+                GHOTA_EVENT_NOUPDATE_AVAILABLE,
+                handle,
+                sizeof(ghota_client_handle_t *),
+                portMAX_DELAY);
             xSemaphoreGive(ghota_lock);
+            if (err != ESP_OK)
+                return err;
             return ESP_FAIL;
         }
     }
     else
     {
-        ESP_LOGW(TAG, "Github Release API Returned: %d", esp_http_client_get_status_code(client));
+        ESP_LOGW(
+            TAG,
+            "Github Release API Returned: %d",
+            esp_http_client_get_status_code(client));
         esp_http_client_cleanup(client);
-        ESP_ERROR_CHECK(esp_event_post(GHOTA_EVENTS, GHOTA_EVENT_NOUPDATE_AVAILABLE, handle, sizeof(ghota_client_handle_t *), portMAX_DELAY));
+        err = esp_event_post(
+            GHOTA_EVENTS,
+            GHOTA_EVENT_NOUPDATE_AVAILABLE,
+            handle,
+            sizeof(ghota_client_handle_t *),
+            portMAX_DELAY);
         xSemaphoreGive(ghota_lock);
+        if (err != ESP_OK)
+            return err;
         return ESP_FAIL;
     }
 
     esp_http_client_cleanup(client);
-    ESP_ERROR_CHECK(esp_event_post(GHOTA_EVENTS, GHOTA_EVENT_UPDATE_AVAILABLE, handle, sizeof(ghota_client_handle_t *), portMAX_DELAY));
+    err = esp_event_post(
+        GHOTA_EVENTS,
+        GHOTA_EVENT_UPDATE_AVAILABLE,
+        handle,
+        sizeof(ghota_client_handle_t *),
+        portMAX_DELAY);
     xSemaphoreGive(ghota_lock);
+    if (err != ESP_OK)
+        return err;
     return ESP_OK;
 }
 
-static esp_err_t validate_image_header(esp_app_desc_t *new_app_info)
+static esp_err_t validate_image_header(
+    esp_app_desc_t *new_app_info)
 {
     if (new_app_info == NULL)
-    {
         return ESP_ERR_INVALID_ARG;
-    }
-    ESP_LOGI(TAG, "New Firmware Details:");
-    ESP_LOGI(TAG, "Project name: %s", new_app_info->project_name);
-    ESP_LOGI(TAG, "Firmware version: %s", new_app_info->version);
-    ESP_LOGI(TAG, "Compiled time: %s %s", new_app_info->date, new_app_info->time);
-    ESP_LOGI(TAG, "ESP-IDF: %s", new_app_info->idf_ver);
-    ESP_LOGI(TAG, "SHA256:");
-    ESP_LOG_BUFFER_HEX(TAG, new_app_info->app_elf_sha256, sizeof(new_app_info->app_elf_sha256));
 
-    const esp_partition_t *running = esp_ota_get_running_partition();
-    ESP_LOGD(TAG, "Current partition %s type %d subtype %d (offset 0x%08" PRIx32 ")",
-             running->label, running->type, running->subtype, running->address);
-    const esp_partition_t *update = esp_ota_get_next_update_partition(NULL);
-    ESP_LOGD(TAG, "Update partition %s type %d subtype %d (offset 0x%08" PRIx32 ")",
-             update->label, update->type, update->subtype, update->address);
+    ESP_LOGI(
+        TAG,
+        "New Firmware Details:");
+    ESP_LOGI(
+        TAG,
+        "Project name: %s",
+        new_app_info->project_name);
+    ESP_LOGI(
+        TAG,
+        "Firmware version: %s",
+        new_app_info->version);
+    ESP_LOGI(
+        TAG,
+        "Compiled time: %s %s",
+        new_app_info->date,
+        new_app_info->time);
+    ESP_LOGI(
+        TAG,
+        "ESP-IDF: %s",
+        new_app_info->idf_ver);
+    ESP_LOGI(
+        TAG,
+        "SHA256:");
+    ESP_LOG_BUFFER_HEX(
+        TAG,
+        new_app_info->app_elf_sha256,
+        sizeof(new_app_info->app_elf_sha256));
+
+    const esp_partition_t *running =
+        esp_ota_get_running_partition();
+    ESP_LOGD(
+        TAG,
+        "Current partition %s type %d "
+        "subtype %d (offset 0x%08" PRIx32 ")",
+        running->label,
+        running->type,
+        running->subtype,
+        running->address);
+    const esp_partition_t *update =
+        esp_ota_get_next_update_partition(NULL);
+    ESP_LOGD(
+        TAG,
+        "Update partition %s type %d "
+        "subtype %d (offset 0x%08" PRIx32 ")",
+        update->label,
+        update->type,
+        update->subtype,
+        update->address);
 
 #ifdef CONFIG_BOOTLOADER_APP_ANTI_ROLLBACK
     /**
@@ -474,10 +678,15 @@ static esp_err_t validate_image_header(esp_app_desc_t *new_app_info)
      * entire firmware image. However this is optional because it is also taken care in API
      * esp_https_ota_finish at the end of OTA update procedure.
      */
-    const uint32_t hw_sec_version = esp_efuse_read_secure_version();
+    const uint32_t hw_sec_version =
+        esp_efuse_read_secure_version();
     if (new_app_info->secure_version < hw_sec_version)
     {
-        ESP_LOGW(TAG, "New firmware security version is less than eFuse programmed, %d < %d", new_app_info->secure_version, hw_sec_version);
+        ESP_LOGW(
+            TAG,
+            "New firmware security version is less than eFuse programmed, %d < %d",
+            new_app_info->secure_version,
+            hw_sec_version);
         return ESP_FAIL;
     }
 #endif
@@ -485,12 +694,17 @@ static esp_err_t validate_image_header(esp_app_desc_t *new_app_info)
     return ESP_OK;
 }
 
-static esp_err_t http_client_set_header_cb(esp_http_client_handle_t http_client)
+static esp_err_t http_client_set_header_cb(
+    esp_http_client_handle_t http_client)
 {
-    return esp_http_client_set_header(http_client, "Accept", "application/octet-stream");
+    return esp_http_client_set_header(
+        http_client,
+        "Accept",
+        "application/octet-stream");
 }
 
-esp_err_t _http_event_storage_handler(esp_http_client_event_t *evt)
+esp_err_t _http_event_storage_handler(
+    esp_http_client_event_t *evt)
 {
     static int output_pos;
     static int last_progress;
@@ -506,35 +720,68 @@ esp_err_t _http_event_storage_handler(esp_http_client_event_t *evt)
         break;
     }
     case HTTP_EVENT_ON_DATA:
-        if (!esp_http_client_is_chunked_response(evt->client))
+        if (!esp_http_client_is_chunked_response(
+                evt->client))
         {
-            ghota_client_handle_t *handle = (ghota_client_handle_t *)evt->user_data;
+            ghota_client_handle_t *handle =
+                (ghota_client_handle_t *)evt->user_data;
+            esp_err_t err;
+            esp_partition_t *storage_partition =
+                ghota_client_get_storage_partition(handle);
             if (output_pos == 0)
             {
                 ESP_LOGD(TAG, "Erasing Partition");
-                ESP_ERROR_CHECK(esp_partition_erase_range(handle->storage_partition, 0, handle->storage_partition->size));
+                err = esp_partition_erase_range(
+                    storage_partition,
+                    0,
+                    storage_partition->size);
                 ESP_LOGD(TAG, "Erasing Complete");
             }
-
-            ESP_ERROR_CHECK(esp_partition_write(handle->storage_partition, output_pos, evt->data, evt->data_len));
+            err = esp_partition_write(
+                storage_partition,
+                output_pos,
+                evt->data,
+                evt->data_len);
             output_pos += evt->data_len;
-            int progress = 100 * ((float)output_pos / (float)handle->storage_partition->size);
-            if ((progress % 5 == 0) && (progress != last_progress))
+            int progress =
+                100 * ((float)output_pos /
+                       (float)storage_partition->size);
+            if ((progress % 5 == 0) &&
+                (progress != last_progress))
             {
-                ESP_LOGV(TAG, "Storage Firmware Update Progress: %d%%", progress);
-                ESP_ERROR_CHECK(esp_event_post(GHOTA_EVENTS, GHOTA_EVENT_STORAGE_UPDATE_PROGRESS, &progress, sizeof(progress), portMAX_DELAY));
+                ESP_LOGV(
+                    TAG,
+                    "Storage Firmware Update Progress: %d%%",
+                    progress);
+                err = esp_event_post(
+                    GHOTA_EVENTS,
+                    GHOTA_EVENT_STORAGE_UPDATE_PROGRESS,
+                    &progress,
+                    sizeof(progress),
+                    portMAX_DELAY);
                 last_progress = progress;
+                if (err != ESP_OK)
+                    return err;
             }
         }
         break;
     case HTTP_EVENT_DISCONNECTED:
     {
         int mbedtls_err = 0;
-        esp_err_t err = esp_tls_get_and_clear_last_error(evt->data, &mbedtls_err, NULL);
+        esp_err_t err = esp_tls_get_and_clear_last_error(
+            evt->data,
+            &mbedtls_err,
+            NULL);
         if (err != 0)
         {
-            ESP_LOGE(TAG, "Last esp error code: 0x%x", err);
-            ESP_LOGE(TAG, "Last mbedtls failure: 0x%x", mbedtls_err);
+            ESP_LOGE(
+                TAG,
+                "Last esp error code: 0x%x",
+                err);
+            ESP_LOGE(
+                TAG,
+                "Last mbedtls failure: 0x%x",
+                mbedtls_err);
         }
         break;
     }
@@ -543,9 +790,12 @@ esp_err_t _http_event_storage_handler(esp_http_client_event_t *evt)
     return ESP_OK;
 }
 
-esp_err_t ghota_storage_update(ghota_client_handle_t *handle)
+esp_err_t ghota_storage_update(
+    ghota_client_handle_t *handle)
 {
-    if (xSemaphoreTake(ghota_lock, pdMS_TO_TICKS(1000)) != pdTRUE)
+    if (xSemaphoreTake(
+            ghota_lock,
+            pdMS_TO_TICKS(1000)) != pdTRUE)
     {
         ESP_LOGE(TAG, "Failed to take lock");
         return ESP_FAIL;
@@ -556,64 +806,151 @@ esp_err_t ghota_storage_update(ghota_client_handle_t *handle)
         xSemaphoreGive(ghota_lock);
         return ESP_ERR_INVALID_ARG;
     }
-    if (!strlen(handle->result.storageurl))
+    char *storageurl =
+        ghota_client_get_result_storage_url(handle);
+    if (!strlen(storageurl))
     {
         ESP_LOGE(TAG, "No Storage URL");
         xSemaphoreGive(ghota_lock);
         return ESP_FAIL;
     }
-    if (!strlen(handle->config.storagepartitionname))
+    ghota_config_t *ghota_config =
+        ghota_client_get_config(handle);
+    if (!strlen(ghota_config->storagepartitionname))
     {
         ESP_LOGE(TAG, "No Storage Partition Name");
         xSemaphoreGive(ghota_lock);
         return ESP_FAIL;
     }
-    handle->storage_partition = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, handle->config.storagepartitionname);
-    if (handle->storage_partition == NULL)
+    ghota_client_set_partition(
+        handle,
+        esp_partition_find_first(
+            ESP_PARTITION_TYPE_DATA,
+            ESP_PARTITION_SUBTYPE_ANY,
+            ghota_config->storagepartitionname));
+    const esp_partition_t *partition =
+        ghota_client_get_storage_partition(handle);
+    if (partition == NULL)
     {
         ESP_LOGE(TAG, "Storage Partition Not Found");
         xSemaphoreGive(ghota_lock);
         return ESP_FAIL;
     }
-    ESP_LOGD(TAG, "Storage Partition %s - Type %x Subtype %x Found at %" PRIx32 " - size %" PRIu32, handle->storage_partition->label, handle->storage_partition->type, handle->storage_partition->subtype, handle->storage_partition->address, handle->storage_partition->size);
-    ESP_ERROR_CHECK(esp_event_post(GHOTA_EVENTS, GHOTA_EVENT_START_STORAGE_UPDATE, NULL, 0, portMAX_DELAY));
-    /* give time for the system to react, such as unmounting the filesystems etc */
+    ESP_LOGD(
+        TAG,
+        "Storage Partition %s - Type %x Subtype "
+        "%x Found at %" PRIx32 " - size %" PRIu32,
+        partition->label,
+        partition->type,
+        partition->subtype,
+        partition->address,
+        partition->size);
+    esp_err_t err = esp_event_post(
+        GHOTA_EVENTS,
+        GHOTA_EVENT_START_STORAGE_UPDATE,
+        NULL,
+        0,
+        portMAX_DELAY);
+    if (err != ESP_OK)
+    {
+        xSemaphoreGive(ghota_lock);
+        return err;
+    }
+    /* give time for the system to react,
+    such as unmounting the filesystems etc */
     vTaskDelay(pdMS_TO_TICKS(1000));
 
     // ABSTRACTION: update_partition(???)
     esp_http_client_config_t config = {
-        .url = handle->result.storageurl,
+        .url = ghota_client_get_result_storage_url(
+            handle),
         .event_handler = _http_event_storage_handler,
         .crt_bundle_attach = esp_crt_bundle_attach,
         .user_data = handle,
-        .buffer_size_tx = 2048,
-
-    };
-    if (handle->username)
+        .buffer_size_tx = 2048};
+    char *username =
+        ghota_client_get_username(handle);
+    if (username)
     {
-        ESP_LOGD(TAG, "Using Authenticated Request to %s", config.url);
-        config.username = handle->username;
-        config.password = handle->token;
+        ESP_LOGD(
+            TAG,
+            "Using Authenticated Request to %s",
+            config.url);
+        config.username = username;
+        config.password =
+            ghota_client_get_token(handle);
         config.auth_type = HTTP_AUTH_TYPE_BASIC;
     }
-    esp_http_client_handle_t client = esp_http_client_init(&config);
-    ESP_ERROR_CHECK(esp_http_client_set_header(client, "Accept", "application/octet-stream"));
-    esp_err_t err = esp_http_client_perform(client);
+    esp_http_client_handle_t client =
+        esp_http_client_init(&config);
+    err = esp_http_client_set_header(
+        client,
+        "Accept",
+        "application/octet-stream");
+    if (err != ESP_OK)
+    {
+        esp_http_client_cleanup(client);
+        xSemaphoreGive(ghota_lock);
+        return err;
+    }
+
+    err = esp_http_client_perform(client);
     if (err == ESP_OK)
     {
-        ESP_LOGD(TAG, "HTTP GET Status = %d, content_length = %" PRICONTENT_LENGTH,
-                 esp_http_client_get_status_code(client),
-                 esp_http_client_get_content_length(client));
+        ESP_LOGD(
+            TAG,
+            "HTTP GET Status = %d, "
+            "content_length = %" PRICONTENT_LENGTH,
+            esp_http_client_get_status_code(client),
+            esp_http_client_get_content_length(client));
         uint8_t sha256[32] = {0};
-        ESP_ERROR_CHECK(esp_partition_get_sha256(handle->storage_partition, sha256));
-        ESP_LOG_BUFFER_HEX("New Storage Partition SHA256:", sha256, sizeof(sha256));
-        ESP_ERROR_CHECK(esp_event_post(GHOTA_EVENTS, GHOTA_EVENT_FINISH_STORAGE_UPDATE, NULL, 0, portMAX_DELAY));
+        err = esp_partition_get_sha256(
+            ghota_client_get_storage_partition(
+                handle),
+            sha256);
+        if (err != ESP_OK)
+        {
+            esp_http_client_cleanup(client);
+            xSemaphoreGive(ghota_lock);
+            return err;
+        }
+        ESP_LOG_BUFFER_HEX(
+            "New Storage Partition SHA256:", 
+            sha256, 
+            sizeof(sha256));
+        err = esp_event_post(
+            GHOTA_EVENTS, 
+            GHOTA_EVENT_FINISH_STORAGE_UPDATE, 
+            NULL, 
+            0, 
+            portMAX_DELAY);
+        if (err != ESP_OK)
+        {
+            esp_http_client_cleanup(client);
+            xSemaphoreGive(ghota_lock);
+            return err;
+        }
     }
     else
     {
-        ESP_LOGE(TAG, "HTTP GET request failed: %s", esp_err_to_name(err));
-        ESP_ERROR_CHECK(esp_event_post(GHOTA_EVENTS, GHOTA_EVENT_STORAGE_UPDATE_FAILED, NULL, 0, portMAX_DELAY));
+        ESP_LOGE(
+            TAG, 
+            "HTTP GET request failed: %s", 
+            esp_err_to_name(err));
+        err = esp_event_post(
+            GHOTA_EVENTS, 
+            GHOTA_EVENT_STORAGE_UPDATE_FAILED, 
+            NULL, 
+            0, 
+            portMAX_DELAY);
+        if (err != ESP_OK)
+        {
+            esp_http_client_cleanup(client);
+            xSemaphoreGive(ghota_lock);
+            return err;
+        }
     }
+
     esp_http_client_cleanup(client);
     xSemaphoreGive(ghota_lock);
     return ESP_OK;
@@ -622,36 +959,70 @@ esp_err_t ghota_storage_update(ghota_client_handle_t *handle)
 esp_err_t ghota_update(ghota_client_handle_t *handle)
 {
     esp_err_t ota_finish_err = ESP_OK;
-    if (xSemaphoreTake(ghota_lock, pdMS_TO_TICKS(1000)) != pdTRUE)
+    if (xSemaphoreTake(
+        ghota_lock, 
+        pdMS_TO_TICKS(1000)) != pdTRUE)
     {
         ESP_LOGE(TAG, "Failed to take lock");
         return ESP_FAIL;
     }
-    ESP_LOGI(TAG, "Scheduled Check for Firmware Update Starting");
-    ESP_ERROR_CHECK(esp_event_post(GHOTA_EVENTS, GHOTA_EVENT_START_UPDATE, NULL, 0, portMAX_DELAY));
+    ESP_LOGI(
+        TAG, 
+        "Scheduled Check for Firmware Update Starting");
+    esp_err_t err = esp_event_post(
+        GHOTA_EVENTS, 
+        GHOTA_EVENT_START_UPDATE, 
+        NULL, 
+        0, 
+        portMAX_DELAY);
+    if (err != ESP_OK)
+    {
+        xSemaphoreGive(ghota_lock);
+        return err;
+    }
+
     if (!GetFlag(handle, GHOTA_RELEASE_VALID_ASSET))
     {
-        ESP_LOGE(TAG, "No Valid Release Asset Found");
-        ESP_ERROR_CHECK(esp_event_post(GHOTA_EVENTS, GHOTA_EVENT_UPDATE_FAILED, NULL, 0, portMAX_DELAY));
+        ESP_LOGE(
+            TAG, 
+            "No Valid Release Asset Found");
+        err = esp_event_post(
+            GHOTA_EVENTS, 
+            GHOTA_EVENT_UPDATE_FAILED, 
+            NULL, 
+            0, 
+            portMAX_DELAY);
         xSemaphoreGive(ghota_lock);
+        if (err != ESP_OK)
+            return err;
         return ESP_FAIL;
     }
-    int cmp = semver_compare_version(handle->latest_version, handle->current_version);
+    int cmp = semver_compare_version(
+        *ghota_client_get_latest_version(handle), 
+        *ghota_client_get_current_version(handle));
     if (cmp != 1)
     {
-        ESP_LOGE(TAG, "Current Version is equal or newer than new release");
-        ESP_ERROR_CHECK(esp_event_post(GHOTA_EVENTS, GHOTA_EVENT_UPDATE_FAILED, NULL, 0, portMAX_DELAY));
+        ESP_LOGE(
+            TAG, 
+            "Current Version is equal or newer than new release");
+        err = esp_event_post(
+            GHOTA_EVENTS, 
+            GHOTA_EVENT_UPDATE_FAILED, 
+            NULL, 
+            0, 
+            portMAX_DELAY);
         xSemaphoreGive(ghota_lock);
+        if (err != ESP_OK)
+            return err;
         return ESP_OK;
     }
 
     // ABSTRACTION: ota_begin(???)
-
     esp_http_client_config_t httpconfig = {
-        .url = handle->result.url,
+        .url = ghota_client_get_result_url(handle),
         .crt_bundle_attach = esp_crt_bundle_attach,
         .keep_alive_enable = true,
-        .buffer_size_tx = 4096,
+        .buffer_size_tx = 4096
     };
 
     if (handle->username)

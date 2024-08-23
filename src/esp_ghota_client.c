@@ -86,6 +86,64 @@ void ghota_client_clear_result_flag(
     handle->result.flags &= ~flag;
 }
 
+void ghota_client_set_result_tag_name(
+    ghota_client_handle_t *handle,
+    char *name)
+{
+    strncpy(
+        handle->result.tag_name,
+        name,
+        CONFIG_MAX_FILENAME_LEN);
+}
+
+char *ghota_client_get_result_name(
+    ghota_client_handle_t *handle)
+{
+    return handle->result.name;
+}
+
+void ghota_client_set_result_name(
+    ghota_client_handle_t *handle,
+    char *name)
+{
+    strncpy(
+        handle->result.name,
+        name,
+        CONFIG_MAX_FILENAME_LEN);
+}
+
+char *ghota_client_get_result_url(
+    ghota_client_handle_t *handle)
+{
+    return handle->result.url;
+}
+
+void ghota_client_set_result_url(
+    ghota_client_handle_t *handle,
+    char *url)
+{
+    strncpy(
+        handle->result.url,
+        url,
+        CONFIG_MAX_URL_LEN);
+}
+
+char *ghota_client_get_result_storage_url(
+    ghota_client_handle_t *handle)
+{
+    return handle->result.storageurl;
+}
+
+void ghota_client_set_result_storage_url(
+    ghota_client_handle_t *handle,
+    char *url)
+{
+    strncpy(
+        handle->result.storageurl,
+        url,
+        CONFIG_MAX_URL_LEN);
+}
+
 size_t ghota_client_get_handle_size()
 {
     return sizeof(ghota_client_handle_t);
@@ -171,16 +229,6 @@ semver_t *ghota_client_get_latest_version(
     return &handle->latest_version;
 }
 
-void ghota_client_set_tag_name(
-    ghota_client_handle_t *handle,
-    char *name)
-{
-    strncpy(
-        handle->result.tag_name,
-        name,
-        CONFIG_MAX_FILENAME_LEN);
-}
-
 char *ghota_client_get_scratch_name(
     ghota_client_handle_t *handle)
 {
@@ -211,4 +259,18 @@ void ghota_client_set_scratch_url(
         handle->scratch.url,
         url,
         CONFIG_MAX_URL_LEN);
+}
+
+const esp_partition_t *ghota_client_get_storage_partition(
+    ghota_client_handle_t *handle)
+{
+    return handle->storage_partition;
+}
+
+void ghota_client_set_partition(
+    ghota_client_handle_t *handle,
+    const esp_partition_t *storage_partition)
+{
+    handle->storage_partition =
+        storage_partition;
 }

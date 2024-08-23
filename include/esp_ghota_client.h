@@ -44,6 +44,31 @@ extern "C"
         ghota_client_handle_t *handle,
         uint8_t flag);
 
+    void ghota_client_set_result_tag_name(
+        ghota_client_handle_t *handle,
+        char *name);
+
+    char *ghota_client_get_result_name(
+        ghota_client_handle_t *handle);
+
+    void ghota_client_set_result_name(
+        ghota_client_handle_t *handle,
+        char *name);
+
+    char *ghota_client_get_result_url(
+        ghota_client_handle_t *handle);
+
+    void ghota_client_set_result_url(
+        ghota_client_handle_t *handle,
+        char *url);
+
+    char *ghota_client_get_result_storage_url(
+        ghota_client_handle_t *handle);
+
+    void ghota_client_set_result_storage_url(
+        ghota_client_handle_t *handle,
+        char *url);
+
     size_t ghota_client_get_handle_size();
 
     ghota_config_t *ghota_client_get_config(
@@ -67,9 +92,9 @@ extern "C"
     semver_t *ghota_client_get_latest_version(
         ghota_client_handle_t *handle);
 
-    void ghota_client_set_tag_name(
+    void ghota_client_set_latest_version(
         ghota_client_handle_t *handle,
-        char *name);
+        semver_t version);
 
     char *ghota_client_get_scratch_name(
         ghota_client_handle_t *handle);
@@ -84,6 +109,16 @@ extern "C"
     void ghota_client_set_scratch_url(
         ghota_client_handle_t *handle,
         char *url);
+
+    const esp_partition_t *ghota_client_get_storage_partition(
+        ghota_client_handle_t *handle);
+
+    const esp_partition_t *ghota_client_get_storage_partition(
+        ghota_client_handle_t *handle);
+
+    void ghota_client_set_partition(
+        ghota_client_handle_t *handle,
+        const esp_partition_t *storage_partition);
 
 #ifdef __cplusplus
 }
