@@ -4,6 +4,8 @@
 #include "semver.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "esp_partition.h"
+#include "esp_ghota_config.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -84,6 +86,9 @@ extern "C"
     void ghota_client_set_current_version(
         ghota_client_handle_t *handle,
         semver_t curr_ver);
+        
+    TaskHandle_t ghota_client_get_task_handle(
+        ghota_client_handle_t *client_handle);
 
     void ghota_client_set_task_handle(
         ghota_client_handle_t *client_handle,
@@ -119,13 +124,6 @@ extern "C"
     void ghota_client_set_partition(
         ghota_client_handle_t *handle,
         const esp_partition_t *storage_partition);
-
-    TaskHandle_t *ghota_client_get_task_handle(
-        ghota_client_handle_t *ghota_handle);
-
-    void ghota_client_set_task_handle(
-        ghota_client_handle_t *ghota_handle,
-        TaskHandle_t task_handle);
 
     uint32_t ghota_client_get_countdown(
         ghota_client_handle_t *handle);

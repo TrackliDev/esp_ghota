@@ -2,9 +2,8 @@
 #include "esp_ghota_config.h"
 #include "sdkconfig.h"
 #include "interface/ghota_interface.h"
-#include "esp_partition.h"
 
-typedef struct ghota_client_handle_t
+typedef struct ghota_client_handle
 {
     ghota_config_t config;
     char *username;
@@ -216,6 +215,12 @@ void ghota_client_set_current_version(
     handle->current_version = curr_ver;
 }
 
+TaskHandle_t ghota_client_get_task_handle(
+    ghota_client_handle_t *client_handle)
+{
+    return client_handle->task_handle;
+}
+
 void ghota_client_set_task_handle(
     ghota_client_handle_t *client_handle,
     TaskHandle_t task_handle)
@@ -275,20 +280,6 @@ void ghota_client_set_partition(
         storage_partition;
 }
 
-TaskHandle_t *ghota_client_get_task_handle(
-    ghota_client_handle_t *ghota_handle)
-{
-    return ghota_handle->task_handle;
-}
-
-void ghota_client_set_task_handle(
-    ghota_client_handle_t *ghota_handle,
-    TaskHandle_t task_handle)
-{
-    ghota_handle->task_handle =
-        task_handle;
-}
-
 uint32_t ghota_client_get_countdown(
     ghota_client_handle_t *handle)
 {
@@ -300,6 +291,6 @@ uint32_t ghota_client_set_countdown(
     uint32_t countdown)
 {
     handle->countdown = countdown;
-    
+
     return handle->countdown;
 }
