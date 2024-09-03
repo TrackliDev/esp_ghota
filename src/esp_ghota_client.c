@@ -274,3 +274,32 @@ void ghota_client_set_partition(
     handle->storage_partition =
         storage_partition;
 }
+
+TaskHandle_t *ghota_client_get_task_handle(
+    ghota_client_handle_t *ghota_handle)
+{
+    return ghota_handle->task_handle;
+}
+
+void ghota_client_set_task_handle(
+    ghota_client_handle_t *ghota_handle,
+    TaskHandle_t task_handle)
+{
+    ghota_handle->task_handle =
+        task_handle;
+}
+
+uint32_t ghota_client_get_countdown(
+    ghota_client_handle_t *handle)
+{
+    return handle->countdown;
+}
+
+uint32_t ghota_client_set_countdown(
+    ghota_client_handle_t *handle,
+    uint32_t countdown)
+{
+    handle->countdown = countdown;
+    
+    return handle->countdown;
+}

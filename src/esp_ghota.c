@@ -915,14 +915,14 @@ esp_err_t ghota_storage_update(
             return err;
         }
         ESP_LOG_BUFFER_HEX(
-            "New Storage Partition SHA256:", 
-            sha256, 
+            "New Storage Partition SHA256:",
+            sha256,
             sizeof(sha256));
         err = esp_event_post(
-            GHOTA_EVENTS, 
-            GHOTA_EVENT_FINISH_STORAGE_UPDATE, 
-            NULL, 
-            0, 
+            GHOTA_EVENTS,
+            GHOTA_EVENT_FINISH_STORAGE_UPDATE,
+            NULL,
+            0,
             portMAX_DELAY);
         if (err != ESP_OK)
         {
@@ -934,14 +934,14 @@ esp_err_t ghota_storage_update(
     else
     {
         ESP_LOGE(
-            TAG, 
-            "HTTP GET request failed: %s", 
+            TAG,
+            "HTTP GET request failed: %s",
             esp_err_to_name(err));
         err = esp_event_post(
-            GHOTA_EVENTS, 
-            GHOTA_EVENT_STORAGE_UPDATE_FAILED, 
-            NULL, 
-            0, 
+            GHOTA_EVENTS,
+            GHOTA_EVENT_STORAGE_UPDATE_FAILED,
+            NULL,
+            0,
             portMAX_DELAY);
         if (err != ESP_OK)
         {
@@ -960,20 +960,20 @@ esp_err_t ghota_update(ghota_client_handle_t *handle)
 {
     esp_err_t ota_finish_err = ESP_OK;
     if (xSemaphoreTake(
-        ghota_lock, 
-        pdMS_TO_TICKS(1000)) != pdTRUE)
+            ghota_lock,
+            pdMS_TO_TICKS(1000)) != pdTRUE)
     {
         ESP_LOGE(TAG, "Failed to take lock");
         return ESP_FAIL;
     }
     ESP_LOGI(
-        TAG, 
+        TAG,
         "Scheduled Check for Firmware Update Starting");
     esp_err_t err = esp_event_post(
-        GHOTA_EVENTS, 
-        GHOTA_EVENT_START_UPDATE, 
-        NULL, 
-        0, 
+        GHOTA_EVENTS,
+        GHOTA_EVENT_START_UPDATE,
+        NULL,
+        0,
         portMAX_DELAY);
     if (err != ESP_OK)
     {
@@ -984,13 +984,13 @@ esp_err_t ghota_update(ghota_client_handle_t *handle)
     if (!GetFlag(handle, GHOTA_RELEASE_VALID_ASSET))
     {
         ESP_LOGE(
-            TAG, 
+            TAG,
             "No Valid Release Asset Found");
         err = esp_event_post(
-            GHOTA_EVENTS, 
-            GHOTA_EVENT_UPDATE_FAILED, 
-            NULL, 
-            0, 
+            GHOTA_EVENTS,
+            GHOTA_EVENT_UPDATE_FAILED,
+            NULL,
+            0,
             portMAX_DELAY);
         xSemaphoreGive(ghota_lock);
         if (err != ESP_OK)
@@ -998,18 +998,18 @@ esp_err_t ghota_update(ghota_client_handle_t *handle)
         return ESP_FAIL;
     }
     int cmp = semver_compare_version(
-        *ghota_client_get_latest_version(handle), 
+        *ghota_client_get_latest_version(handle),
         *ghota_client_get_current_version(handle));
     if (cmp != 1)
     {
         ESP_LOGE(
-            TAG, 
+            TAG,
             "Current Version is equal or newer than new release");
         err = esp_event_post(
-            GHOTA_EVENTS, 
-            GHOTA_EVENT_UPDATE_FAILED, 
-            NULL, 
-            0, 
+            GHOTA_EVENTS,
+            GHOTA_EVENT_UPDATE_FAILED,
+            NULL,
+            0,
             portMAX_DELAY);
         xSemaphoreGive(ghota_lock);
         if (err != ESP_OK)
@@ -1022,14 +1022,18 @@ esp_err_t ghota_update(ghota_client_handle_t *handle)
         .url = ghota_client_get_result_url(handle),
         .crt_bundle_attach = esp_crt_bundle_attach,
         .keep_alive_enable = true,
-        .buffer_size_tx = 4096
-    };
+        .buffer_size_tx = 4096};
 
-    if (handle->username)
+    char *username = ghota_client_get_username(handle);
+    if (username)
     {
-        ESP_LOGD(TAG, "Using Authenticated Request to %s", httpconfig.url);
-        httpconfig.username = handle->username;
-        httpconfig.password = handle->token;
+        ESP_LOGD(
+            TAG,
+            "Using Authenticated Request to %s",
+            httpconfig.url);
+        httpconfig.username = username;
+        httpconfig.password =
+            ghota_client_get_token(handle);
         httpconfig.auth_type = HTTP_AUTH_TYPE_BASIC;
     }
 
@@ -1039,26 +1043,39 @@ esp_err_t ghota_update(ghota_client_handle_t *handle)
     };
 
     esp_https_ota_handle_t https_ota_handle = NULL;
-    esp_err_t err = esp_https_ota_begin(&ota_config, &https_ota_handle);
+    err = esp_https_ota_begin(
+        &ota_config,
+        &https_ota_handle);
     if (err != ESP_OK)
     {
-        ESP_LOGE(TAG, "ESP HTTPS OTA Begin failed: %d", err);
+        ESP_LOGE(
+            TAG,
+            "ESP HTTPS OTA Begin failed: %d",
+            err);
         goto ota_end;
     }
 
     // ABSTRACTION: ota_validate_header(???)
 
     esp_app_desc_t app_desc;
-    err = esp_https_ota_get_img_desc(https_ota_handle, &app_desc);
+    err = esp_https_ota_get_img_desc(
+        https_ota_handle,
+        &app_desc);
     if (err != ESP_OK)
     {
-        ESP_LOGE(TAG, "esp_https_ota_read_img_desc failed: %d", err);
+        ESP_LOGE(
+            TAG,
+            "esp_https_ota_read_img_desc failed: %d",
+            err);
         goto ota_end;
     }
     err = validate_image_header(&app_desc);
     if (err != ESP_OK)
     {
-        ESP_LOGE(TAG, "image header verification failed: %d", err);
+        ESP_LOGE(
+            TAG,
+            "image header verification failed: %s",
+            esp_err_to_name(err));
         goto ota_end;
     }
     int last_progress = -1;
@@ -1070,60 +1087,145 @@ esp_err_t ghota_update(ghota_client_handle_t *handle)
         {
             break;
         }
-        int32_t dl = esp_https_ota_get_image_len_read(https_ota_handle);
-        int32_t size = esp_https_ota_get_image_size(https_ota_handle);
+        int32_t dl = esp_https_ota_get_image_len_read(
+            https_ota_handle);
+        int32_t size = esp_https_ota_get_image_size(
+            https_ota_handle);
         int progress = 100 * ((float)dl / (float)size);
-        if ((progress % 5 == 0) && (progress != last_progress))
+        if ((progress % 5 == 0) &&
+            (progress != last_progress))
         {
-            ESP_ERROR_CHECK(esp_event_post(GHOTA_EVENTS, GHOTA_EVENT_FIRMWARE_UPDATE_PROGRESS, &progress, sizeof(progress), portMAX_DELAY));
-            ESP_LOGV(TAG, "Firmware Update Progress: %d%%", progress);
+            err = esp_event_post(
+                GHOTA_EVENTS,
+                GHOTA_EVENT_FIRMWARE_UPDATE_PROGRESS,
+                &progress,
+                sizeof(progress),
+                portMAX_DELAY);
+            if (err != ESP_OK)
+            {
+                ESP_LOGE(
+                    TAG,
+                    "event %s post failed: %s",
+                    ghota_get_event_str(
+                        GHOTA_EVENT_FIRMWARE_UPDATE_PROGRESS),
+                    esp_err_to_name(err));
+                goto ota_end;
+            }
+            ESP_LOGV(
+                TAG,
+                "Firmware Update Progress: %d%%",
+                progress);
             last_progress = progress;
         }
     }
 
     // ABSTRACTION: ota_verify_download(???)
-    if (esp_https_ota_is_complete_data_received(https_ota_handle) != true)
+    if (esp_https_ota_is_complete_data_received(
+            https_ota_handle) != true)
     {
-        // the OTA image was not completely received and user can customise the response to this situation.
-        ESP_LOGE(TAG, "Complete data was not received.");
+        // the OTA image was not completely received and
+        // user can customise the response to this situation.
+        ESP_LOGE(
+            TAG,
+            "Complete data was not received.");
     }
     else
     {
         // ABSTRACTION: ota_finish(???)
-        ota_finish_err = esp_https_ota_finish(https_ota_handle);
-        if ((err == ESP_OK) && (ota_finish_err == ESP_OK))
+        ota_finish_err = esp_https_ota_finish(
+            https_ota_handle);
+        if ((err == ESP_OK) &&
+            (ota_finish_err == ESP_OK))
         {
-            ESP_ERROR_CHECK(esp_event_post(GHOTA_EVENTS, GHOTA_EVENT_FINISH_UPDATE, NULL, 0, portMAX_DELAY));
-            if (strlen(handle->result.storageurl))
+            err = esp_event_post(
+                GHOTA_EVENTS,
+                GHOTA_EVENT_FINISH_UPDATE,
+                NULL,
+                0,
+                portMAX_DELAY);
+            if (err != ESP_OK)
+            {
+                ESP_LOGE(
+                    TAG,
+                    "event %s post failed: %s",
+                    ghota_get_event_str(
+                        GHOTA_EVENT_FINISH_UPDATE),
+                    esp_err_to_name(err));
+                goto ota_end;
+            }
+            if (strlen(
+                    ghota_client_get_result_storage_url(
+                        handle)))
             {
                 xSemaphoreGive(ghota_lock);
                 if (ghota_storage_update(handle) == ESP_OK)
                 {
-                    ESP_LOGI(TAG, "Storage Update Successful");
+                    ESP_LOGI(
+                        TAG,
+                        "Storage Update Successful");
                 }
                 else
                 {
-                    ESP_LOGE(TAG, "Storage Update Failed");
+                    ESP_LOGE(
+                        TAG,
+                        "Storage Update Failed");
                 }
             }
             else
             {
                 xSemaphoreGive(ghota_lock);
             }
-            ESP_LOGI(TAG, "ESP_HTTPS_OTA upgrade successful. Rebooting ...");
-            ESP_ERROR_CHECK(esp_event_post(GHOTA_EVENTS, GHOTA_EVENT_PENDING_REBOOT, NULL, 0, portMAX_DELAY));
+            ESP_LOGI(
+                TAG,
+                "ESP_HTTPS_OTA upgrade successful. "
+                "Rebooting ...");
+            err = esp_event_post(
+                GHOTA_EVENTS,
+                GHOTA_EVENT_PENDING_REBOOT,
+                NULL,
+                0,
+                portMAX_DELAY);
+            if (err != ESP_OK)
+            {
+                ESP_LOGE(
+                    TAG,
+                    "event %s post failed: %s",
+                    ghota_get_event_str(
+                        GHOTA_EVENT_PENDING_REBOOT),
+                    esp_err_to_name(err));
+            }
             vTaskDelay(1000 / portTICK_PERIOD_MS);
             esp_restart();
             return ESP_OK;
         }
         else
         {
-            if (ota_finish_err == ESP_ERR_OTA_VALIDATE_FAILED)
+            if (ota_finish_err ==
+                ESP_ERR_OTA_VALIDATE_FAILED)
             {
-                ESP_LOGE(TAG, "Image validation failed, image is corrupted");
+                ESP_LOGE(
+                    TAG,
+                    "Image validation failed, image is corrupted");
             }
-            ESP_LOGE(TAG, "ESP_HTTPS_OTA upgrade failed 0x%x", ota_finish_err);
-            ESP_ERROR_CHECK(esp_event_post(GHOTA_EVENTS, GHOTA_EVENT_UPDATE_FAILED, NULL, 0, portMAX_DELAY));
+            ESP_LOGE(
+                TAG,
+                "ESP_HTTPS_OTA upgrade failed 0x%x",
+                ota_finish_err);
+            err = esp_event_post(
+                GHOTA_EVENTS,
+                GHOTA_EVENT_UPDATE_FAILED,
+                NULL,
+                0,
+                portMAX_DELAY);
+            if (err != ESP_OK)
+            {
+                ESP_LOGE(
+                    TAG,
+                    "event %s post failed: %s",
+                    ghota_get_event_str(
+                        GHOTA_EVENT_UPDATE_FAILED),
+                    esp_err_to_name(err));
+            }
             xSemaphoreGive(ghota_lock);
             return ESP_FAIL;
         }
@@ -1133,23 +1235,42 @@ ota_end:
     // ABSTRACTION: ota_abort(???)
     esp_https_ota_abort(https_ota_handle);
     ESP_LOGE(TAG, "ESP_HTTPS_OTA upgrade failed");
-    ESP_ERROR_CHECK(esp_event_post(GHOTA_EVENTS, GHOTA_EVENT_UPDATE_FAILED, NULL, 0, portMAX_DELAY));
+    err = esp_event_post(
+        GHOTA_EVENTS,
+        GHOTA_EVENT_UPDATE_FAILED,
+        NULL,
+        0,
+        portMAX_DELAY);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(
+            TAG,
+            "event %s post failed: %s",
+            ghota_get_event_str(
+                GHOTA_EVENT_UPDATE_FAILED),
+            esp_err_to_name(err));
+    }
     xSemaphoreGive(ghota_lock);
     return ESP_FAIL;
 }
 
-semver_t *ghota_get_current_version(ghota_client_handle_t *handle)
+semver_t *ghota_get_current_version(
+    ghota_client_handle_t *handle)
 {
     if (!handle)
     {
         return NULL;
     }
     semver_t *cur = malloc(sizeof(semver_t));
-    memcpy(cur, &handle->current_version, sizeof(semver_t));
+    memcpy(
+        cur,
+        ghota_client_get_current_version(handle),
+        sizeof(semver_t));
     return cur;
 }
 
-semver_t *ghota_get_latest_version(ghota_client_handle_t *handle)
+semver_t *ghota_get_latest_version(
+    ghota_client_handle_t *handle)
 {
     if (!handle)
     {
@@ -1160,27 +1281,55 @@ semver_t *ghota_get_latest_version(ghota_client_handle_t *handle)
         return NULL;
     }
     semver_t *new = malloc(sizeof(semver_t));
-    memcpy(new, &handle->latest_version, sizeof(semver_t));
+    memcpy(
+        new,
+        ghota_client_get_latest_version(handle),
+        sizeof(semver_t));
     return new;
 }
 
 static void ghota_task(void *pvParameters)
 {
-    ghota_client_handle_t *handle = (ghota_client_handle_t *)pvParameters;
-    ESP_LOGI(TAG, "Firmware Update Task Starting");
+    ghota_client_handle_t *handle =
+        (ghota_client_handle_t *)pvParameters;
+    ESP_LOGI(
+        TAG,
+        "Firmware Update Task Starting");
     if (handle)
     {
         if (ghota_check(handle) == ESP_OK)
         {
-            if (semver_gt(handle->latest_version, handle->current_version) == 1)
+            if (semver_gt(
+                    *ghota_client_get_latest_version(
+                        handle),
+                    *ghota_client_get_current_version(
+                        handle)) == 1)
             {
-                ESP_LOGI(TAG, "New Version Available");
+                ESP_LOGI(
+                    TAG,
+                    "New Version Available");
                 ghota_update(handle);
             }
             else
             {
-                ESP_LOGI(TAG, "No New Version Available");
-                ESP_ERROR_CHECK(esp_event_post(GHOTA_EVENTS, GHOTA_EVENT_NOUPDATE_AVAILABLE, handle, sizeof(ghota_client_handle_t *), portMAX_DELAY));
+                ESP_LOGI(
+                    TAG,
+                    "No New Version Available");
+                esp_err_t err = esp_event_post(
+                    GHOTA_EVENTS,
+                    GHOTA_EVENT_NOUPDATE_AVAILABLE,
+                    handle,
+                    sizeof(ghota_client_handle_t *),
+                    portMAX_DELAY);
+                if (err != ESP_OK)
+                {
+                    ESP_LOGE(
+                        TAG,
+                        "event %s post failed: %s",
+                        ghota_get_event_str(
+                            GHOTA_EVENT_NOUPDATE_AVAILABLE),
+                        esp_err_to_name(err));
+                }
             }
         }
         else
@@ -1189,31 +1338,44 @@ static void ghota_task(void *pvParameters)
         }
     }
     ESP_LOGI(TAG, "Firmware Update Task Finished");
-    vTaskDelete(handle->task_handle);
+    vTaskDelete(
+        ghota_client_get_task_handle(handle));
     vTaskDelay(pdMS_TO_TICKS(1000));
-    handle->task_handle = NULL;
+    ghota_client_set_task_handle(handle, NULL);
 }
 
-esp_err_t ghota_start_update_task(ghota_client_handle_t *handle)
+esp_err_t ghota_start_update_task(
+    ghota_client_handle_t *handle)
 {
     if (!handle)
     {
         return ESP_FAIL;
     }
     eTaskState state = eInvalid;
-    TaskHandle_t tmp = xTaskGetHandle("ghota_task");
+    TaskHandle_t tmp =
+        xTaskGetHandle("ghota_task");
     if (tmp)
     {
         state = eTaskGetState(tmp);
     }
     if (state == eDeleted || state == eInvalid)
     {
-        ESP_LOGD(TAG, "Starting Task to Check for Updates");
-        if (xTaskCreate(ghota_task, "ghota_task", 6144, handle, 5, &handle->task_handle) != pdPASS)
+        ESP_LOGD(
+            TAG,
+            "Starting Task to Check for Updates");
+        if (xTaskCreate(
+                ghota_task,
+                "ghota_task",
+                6144,
+                handle,
+                5,
+                &tmp) != pdPASS)
         {
             ESP_LOGW(TAG, "Failed to Start ghota_task");
+            ghota_client_set_task_handle(handle, NULL);
             return ESP_FAIL;
         }
+        ghota_client_set_task_handle(handle, tmp);
     }
     else
     {
@@ -1223,15 +1385,28 @@ esp_err_t ghota_start_update_task(ghota_client_handle_t *handle)
     return ESP_OK;
 }
 
-static void ghota_timer_callback(TimerHandle_t xTimer)
+static void ghota_timer_callback(
+    TimerHandle_t xTimer)
 {
-    ghota_client_handle_t *handle = (ghota_client_handle_t *)pvTimerGetTimerID(xTimer);
+    ghota_client_handle_t *handle =
+        (ghota_client_handle_t *)pvTimerGetTimerID(
+            xTimer);
     if (handle)
     {
-        handle->countdown--;
-        if (handle->countdown == 0)
+        uint32_t cd =
+            ghota_client_get_countdown(handle);
+
+        cd = ghota_client_set_countdown(
+            handle,
+            cd - 1);
+        if (cd == 0)
         {
-            handle->countdown = handle->config.updateInterval;
+            ghota_config_t *cfg =
+                ghota_client_get_config(handle);
+            ghota_client_set_countdown(
+                handle,
+                cfg->updateInterval);
+
             ghota_start_update_task(handle);
         }
     }
@@ -1244,11 +1419,21 @@ esp_err_t ghota_start_update_timer(ghota_client_handle_t *handle)
         ESP_LOGE(TAG, "Failed to initialize GHOTA Client");
         return ESP_FAIL;
     }
-    handle->countdown = handle->config.updateInterval;
+
+    ghota_config_t *cfg =
+        ghota_client_get_config(handle);
+    ghota_client_set_countdown(
+        handle,
+        cfg->updateInterval);
 
     /* run timer every minute */
     uint64_t ticks = pdMS_TO_TICKS(1000) * 60;
-    TimerHandle_t timer = xTimerCreate("ghota_timer", ticks, pdTRUE, (void *)handle, ghota_timer_callback);
+    TimerHandle_t timer = xTimerCreate(
+        "ghota_timer", 
+        ticks, 
+        pdTRUE, 
+        (void *)handle, 
+        ghota_timer_callback);
     if (timer == NULL)
     {
         ESP_LOGE(TAG, "Failed to create timer");
@@ -1263,7 +1448,10 @@ esp_err_t ghota_start_update_timer(ghota_client_handle_t *handle)
         }
         else
         {
-            ESP_LOGI(TAG, "Started Update Timer for %" PRIu32 " Minutes", handle->config.updateInterval);
+            ESP_LOGI(
+                TAG, 
+                "Started Update Timer for %" PRIu32 " Minutes", 
+                cfg->updateInterval);
         }
     }
     return ESP_OK;
