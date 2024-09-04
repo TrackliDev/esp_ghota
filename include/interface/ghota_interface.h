@@ -3,6 +3,7 @@
 
 #include "esp_err.h"
 #include "lwjson.h"
+#include "esp_ghota_client.h"
 
 #ifdef __cplusplus
 extern "C"

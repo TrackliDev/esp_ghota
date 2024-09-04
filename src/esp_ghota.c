@@ -516,7 +516,7 @@ esp_err_t ghota_check(
         {
             semver_t latest_version;
             if (semver_parse(
-                    ghota_client_get_result_tag(handle),
+                    ghota_client_get_result_tag_name(handle),
                     &latest_version))
             {
                 ESP_LOGE(TAG, "Failed to parse new version");

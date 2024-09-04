@@ -2,6 +2,7 @@
 #include <esp_tls.h>
 #include <esp_crt_bundle.h>
 #include <esp_https_ota.h>
+#include <esp_log.h>
 
 #include "interface/ghota_wifi_interface.h"
 #include "esp_ghota_client.h"
@@ -16,6 +17,7 @@ static esp_err_t wifi_get_release_info(
 
 static ghota_interface_t wifi_ghota_interface = {
     .get_release_info = &wifi_get_release_info};
+
 
 static esp_err_t _http_event_handler(
     esp_http_client_event_t *evt)
@@ -46,8 +48,7 @@ static esp_err_t _http_event_handler(
         }
         break;
     case HTTP_EVENT_ON_DATA:
-        if (!esp_http_client_is_chunked_response(
-                evt->client))
+        if (!esp_http_client_is_chunked_response(evt->client))
         {
             char *buf = evt->data;
             for (int i = 0; i < evt->data_len; i++)
@@ -59,10 +60,7 @@ static esp_err_t _http_event_handler(
                       res == lwjsonSTREAMDONE ||
                       res == lwjsonSTREAMINPROG))
                 {
-                    ESP_LOGE(
-                        WIFI_INTERFACE_TAG,
-                        "Lwjson Error: %d",
-                        res);
+                    ESP_LOGE(WIFI_INTERFACE_TAG, "Lwjson Error: %d", res);
                 }
                 buf++;
             }
@@ -71,19 +69,16 @@ static esp_err_t _http_event_handler(
     case HTTP_EVENT_DISCONNECTED:
     {
         int mbedtls_err = 0;
-        esp_err_t err = 
-            esp_tls_get_and_clear_last_error(
-            evt->data, &mbedtls_err, NULL);
+        esp_err_t err = esp_tls_get_and_clear_last_error(
+            evt->data,
+            &mbedtls_err,
+            NULL);
         if (err != 0)
         {
             ESP_LOGE(
-                WIFI_INTERFACE_TAG,
-                "Last esp error code: 0x%x",
-                err);
+                WIFI_INTERFACE_TAG, "Last esp error code: 0x%x", err);
             ESP_LOGE(
-                WIFI_INTERFACE_TAG,
-                "Last mbedtls failure: 0x%x",
-                mbedtls_err);
+                WIFI_INTERFACE_TAG, "Last mbedtls failure: 0x%x", mbedtls_err);
         }
         break;
     }
@@ -101,32 +96,30 @@ static esp_err_t wifi_get_release_info(
         .url = url,
         .crt_bundle_attach = esp_crt_bundle_attach,
         .event_handler = _http_event_handler,
-        .user_data = &parser,
+        .user_data = parser,
     };
+    char *username =
+        ghota_client_get_username(handle);
 
-    char *username = get_ghota_client_username(
-        handle);
-    if (username)
+    if (ghota_client_get_username(handle))
     {
         ESP_LOGD(
             WIFI_INTERFACE_TAG,
             "Using Authenticated Request to %s",
             url);
         httpconfig.username = username;
-        httpconfig.password = get_ghota_client_token(
-            handle);
+        httpconfig.password =
+            ghota_client_get_token(handle);
         httpconfig.auth_type = HTTP_AUTH_TYPE_BASIC;
     }
-
-    ESP_LOGI(
-        WIFI_INTERFACE_TAG,
-        "Searching for Firmware from %s",
-        url);
+    ESP_LOGI(WIFI_INTERFACE_TAG, "Searching for Firmware from %s", url);
 
     esp_http_client_handle_t client =
         esp_http_client_init(&httpconfig);
 
     esp_err_t err = esp_http_client_perform(client);
+
+    return err;
 }
 
 ghota_interface_t *get_wifi_ghota_interface()

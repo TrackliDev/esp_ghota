@@ -21,14 +21,14 @@ extern "C"
 
     int ghota_client_set_username(
         ghota_client_handle_t *handle,
-        char *username);
+        const char *username);
 
     char *ghota_client_get_token(
         ghota_client_handle_t *handle);
 
     int ghota_client_set_token(
         ghota_client_handle_t *handle,
-        char *token);
+        const char *token);
 
     void ghota_client_set_result_flag(
         ghota_client_handle_t *handle,
@@ -45,6 +45,9 @@ extern "C"
     void ghota_client_clear_result_flag(
         ghota_client_handle_t *handle,
         uint8_t flag);
+
+    char *ghota_client_get_result_tag_name(
+        ghota_client_handle_t *handle);
 
     void ghota_client_set_result_tag_name(
         ghota_client_handle_t *handle,

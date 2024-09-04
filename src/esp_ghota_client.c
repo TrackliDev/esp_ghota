@@ -37,7 +37,7 @@ char *ghota_client_get_username(
 
 int ghota_client_set_username(
     ghota_client_handle_t *handle,
-    char *username)
+    const char *username)
 {
     return asprintf(
         &handle->username, "%s", username);
@@ -51,7 +51,7 @@ char *ghota_client_get_token(
 
 int ghota_client_set_token(
     ghota_client_handle_t *handle,
-    char *token)
+    const char *token)
 {
     return asprintf(
         &handle->token, "%s", token);
@@ -83,6 +83,12 @@ void ghota_client_clear_result_flag(
     uint8_t flag)
 {
     handle->result.flags &= ~flag;
+}
+
+char *ghota_client_get_result_tag_name(
+    ghota_client_handle_t *handle)
+{
+    return handle->result.tag_name;
 }
 
 void ghota_client_set_result_tag_name(
@@ -232,6 +238,13 @@ semver_t *ghota_client_get_latest_version(
     ghota_client_handle_t *handle)
 {
     return &handle->latest_version;
+}
+
+void ghota_client_set_latest_version(
+    ghota_client_handle_t *handle,
+    semver_t version)
+{
+    handle->latest_version = version;
 }
 
 char *ghota_client_get_scratch_name(
