@@ -13,7 +13,6 @@
 #include <esp_https_ota.h>
 #include <esp_event.h>
 
-#include <sdkconfig.h>
 #include "esp_ghota.h"
 #include "lwjson.h"
 #include "interface/ghota_interface.h"
@@ -21,12 +20,6 @@
 static const char *TAG = "GHOTA";
 
 ESP_EVENT_DEFINE_BASE(GHOTA_EVENTS);
-
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
-#define PRICONTENT_LENGTH PRId64
-#else
-#define PRICONTENT_LENGTH PRId32
-#endif
 
 enum release_flags
 {
@@ -326,74 +319,6 @@ static void lwjson_callback(
     }
 }
 
-static esp_err_t _http_event_handler(
-    esp_http_client_event_t *evt)
-{
-    lwjsonr_t res;
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wswitch"
-    switch (evt->event_id)
-    {
-    case HTTP_EVENT_ON_HEADER:
-        if (strncasecmp(
-                evt->header_key,
-                "x-ratelimit-remaining",
-                strlen("x-ratelimit-remaining")) == 0)
-        {
-            int limit = atoi(evt->header_value);
-            ESP_LOGD(
-                TAG,
-                "Github API Rate Limit Remaining: %d",
-                limit);
-            if (limit < 10)
-            {
-                ESP_LOGW(
-                    TAG,
-                    "Github API Rate Limit Remaining is low: %d",
-                    limit);
-            }
-        }
-        break;
-    case HTTP_EVENT_ON_DATA:
-        if (!esp_http_client_is_chunked_response(evt->client))
-        {
-            char *buf = evt->data;
-            for (int i = 0; i < evt->data_len; i++)
-            {
-                res = lwjson_stream_parse(
-                    (lwjson_stream_parser_t *)evt->user_data,
-                    *buf);
-                if (!(res == lwjsonOK ||
-                      res == lwjsonSTREAMDONE ||
-                      res == lwjsonSTREAMINPROG))
-                {
-                    ESP_LOGE(TAG, "Lwjson Error: %d", res);
-                }
-                buf++;
-            }
-        }
-        break;
-    case HTTP_EVENT_DISCONNECTED:
-    {
-        int mbedtls_err = 0;
-        esp_err_t err = esp_tls_get_and_clear_last_error(
-            evt->data,
-            &mbedtls_err,
-            NULL);
-        if (err != 0)
-        {
-            ESP_LOGE(
-                TAG, "Last esp error code: 0x%x", err);
-            ESP_LOGE(
-                TAG, "Last mbedtls failure: 0x%x", mbedtls_err);
-        }
-        break;
-    }
-    }
-#pragma GCC diagnostic pop
-    return ESP_OK;
-}
-
 esp_err_t ghota_check(
     ghota_client_handle_t *handle)
 {
@@ -454,167 +379,142 @@ esp_err_t ghota_check(
         config->orgname,
         config->reponame);
 
-    // ABSTRACTION: handle->interface->get_release_info(handle, url, &stream_parser);
+    err = config->interface->get_release_info(
+        handle, 
+        url, 
+        &stream_parser);
 
-    esp_http_client_config_t httpconfig = {
-        .url = url,
-        .crt_bundle_attach = esp_crt_bundle_attach,
-        .event_handler = _http_event_handler,
-        .user_data = &stream_parser,
-    };
-    char *username =
-        ghota_client_get_username(handle);
-
-    if (ghota_client_get_username(handle))
-    {
-        ESP_LOGD(
-            TAG,
-            "Using Authenticated Request to %s",
-            url);
-        httpconfig.username = username;
-        httpconfig.password =
-            ghota_client_get_token(handle);
-        httpconfig.auth_type = HTTP_AUTH_TYPE_BASIC;
-    }
-    ESP_LOGI(TAG, "Searching for Firmware from %s", url);
-
-    esp_http_client_handle_t client =
-        esp_http_client_init(&httpconfig);
-
-    err = esp_http_client_perform(client);
-    if (err == ESP_OK)
-    {
-        ESP_LOGD(
-            TAG,
-            "HTTP GET Status = %d, "
-            "content_length = %" PRICONTENT_LENGTH,
-            esp_http_client_get_status_code(client),
-            esp_http_client_get_content_length(client));
-    }
-    else
+    if (err != ESP_OK)
     {
         ESP_LOGE(
             TAG,
             "HTTP GET request failed: %s",
             esp_err_to_name(err));
-        esp_http_client_cleanup(client);
         err = esp_event_post(
             GHOTA_EVENTS,
             GHOTA_EVENT_NOUPDATE_AVAILABLE,
             handle,
             sizeof(ghota_client_handle_t *),
             portMAX_DELAY);
-        xSemaphoreGive(ghota_lock);
         if (err != ESP_OK)
-            return err;
+        {
+            ESP_LOGE(
+                TAG,
+                "event %s post failed: %s",
+                ghota_get_event_str(
+                    GHOTA_EVENT_NOUPDATE_AVAILABLE),
+                esp_err_to_name(err));
+        }
+        xSemaphoreGive(ghota_lock);
 
         return ESP_FAIL;
     }
-    if (esp_http_client_get_status_code(client) == 200)
-    {
-        if (GetFlag(handle, GHOTA_RELEASE_VALID_ASSET))
-        {
-            semver_t latest_version;
-            if (semver_parse(
-                    ghota_client_get_result_tag_name(handle),
-                    &latest_version))
-            {
-                ESP_LOGE(TAG, "Failed to parse new version");
-                esp_http_client_cleanup(client);
-                err = esp_event_post(
-                    GHOTA_EVENTS,
-                    GHOTA_EVENT_NOUPDATE_AVAILABLE,
-                    handle,
-                    sizeof(ghota_client_handle_t *),
-                    portMAX_DELAY);
-                xSemaphoreGive(ghota_lock);
-                if (err != ESP_OK)
-                    return err;
-                return ESP_FAIL;
-            }
-            ghota_client_set_latest_version(
-                handle, latest_version);
 
-            semver_t *current_version =
-                ghota_client_get_current_version(handle);
-            ESP_LOGI(
-                TAG,
-                "Current Version %d.%d.%d",
-                current_version->major,
-                current_version->minor,
-                current_version->patch);
-            ESP_LOGI(
-                TAG,
-                "New Version %d.%d.%d",
-                latest_version.major,
-                latest_version.minor,
-                latest_version.patch);
-            ESP_LOGI(
-                TAG,
-                "Asset: %s",
-                ghota_client_get_result_name(handle));
-            ESP_LOGI(
-                TAG,
-                "Firmware URL: %s",
-                ghota_client_get_result_url(handle));
-            char *storage_url =
-                ghota_client_get_result_storage_url(handle);
-            if (strlen(storage_url))
-            {
-                ESP_LOGI(
-                    TAG,
-                    "Storage URL: %s",
-                    storage_url);
-            }
-        }
-        else
+    if (GetFlag(handle, GHOTA_RELEASE_VALID_ASSET))
+    {
+        semver_t latest_version;
+        if (semver_parse(
+                ghota_client_get_result_tag_name(handle),
+                &latest_version))
         {
-            ESP_LOGI(
-                TAG,
-                "Asset: No Valid Firmware Assets Found");
-            esp_http_client_cleanup(client);
+            ESP_LOGE(TAG, "Failed to parse new version");
             err = esp_event_post(
                 GHOTA_EVENTS,
                 GHOTA_EVENT_NOUPDATE_AVAILABLE,
                 handle,
                 sizeof(ghota_client_handle_t *),
                 portMAX_DELAY);
-            xSemaphoreGive(ghota_lock);
             if (err != ESP_OK)
-                return err;
+            {
+                ESP_LOGE(
+                    TAG,
+                    "event %s post failed: %s",
+                    ghota_get_event_str(
+                        GHOTA_EVENT_NOUPDATE_AVAILABLE),
+                    esp_err_to_name(err));
+            }
+            xSemaphoreGive(ghota_lock);
+            
             return ESP_FAIL;
+        }
+        ghota_client_set_latest_version(
+            handle, latest_version);
+
+        semver_t *current_version =
+            ghota_client_get_current_version(handle);
+        ESP_LOGI(
+            TAG,
+            "Current Version %d.%d.%d",
+            current_version->major,
+            current_version->minor,
+            current_version->patch);
+        ESP_LOGI(
+            TAG,
+            "New Version %d.%d.%d",
+            latest_version.major,
+            latest_version.minor,
+            latest_version.patch);
+        ESP_LOGI(
+            TAG,
+            "Asset: %s",
+            ghota_client_get_result_name(handle));
+        ESP_LOGI(
+            TAG,
+            "Firmware URL: %s",
+            ghota_client_get_result_url(handle));
+        char *storage_url =
+            ghota_client_get_result_storage_url(handle);
+        if (strlen(storage_url))
+        {
+            ESP_LOGI(
+                TAG,
+                "Storage URL: %s",
+                storage_url);
         }
     }
     else
     {
-        ESP_LOGW(
+        ESP_LOGI(
             TAG,
-            "Github Release API Returned: %d",
-            esp_http_client_get_status_code(client));
-        esp_http_client_cleanup(client);
+            "Asset: No Valid Firmware Assets Found");
         err = esp_event_post(
             GHOTA_EVENTS,
             GHOTA_EVENT_NOUPDATE_AVAILABLE,
             handle,
             sizeof(ghota_client_handle_t *),
             portMAX_DELAY);
-        xSemaphoreGive(ghota_lock);
         if (err != ESP_OK)
-            return err;
+        {
+            ESP_LOGE(
+                TAG,
+                "event %s post failed: %s",
+                ghota_get_event_str(
+                    GHOTA_EVENT_NOUPDATE_AVAILABLE),
+                esp_err_to_name(err));
+        }
+        xSemaphoreGive(ghota_lock);
+        
         return ESP_FAIL;
     }
-
-    esp_http_client_cleanup(client);
+    
     err = esp_event_post(
         GHOTA_EVENTS,
         GHOTA_EVENT_UPDATE_AVAILABLE,
         handle,
         sizeof(ghota_client_handle_t *),
         portMAX_DELAY);
-    xSemaphoreGive(ghota_lock);
     if (err != ESP_OK)
-        return err;
-    return ESP_OK;
+    {
+        ESP_LOGE(
+            TAG,
+            "event %s post failed: %s",
+            ghota_get_event_str(
+                GHOTA_EVENT_UPDATE_AVAILABLE),
+            esp_err_to_name(err));
+    }
+    xSemaphoreGive(ghota_lock);
+    
+    return err;
 }
 
 static esp_err_t validate_image_header(
@@ -726,7 +626,7 @@ esp_err_t _http_event_storage_handler(
             ghota_client_handle_t *handle =
                 (ghota_client_handle_t *)evt->user_data;
             esp_err_t err;
-            esp_partition_t *storage_partition =
+            const esp_partition_t *storage_partition =
                 ghota_client_get_storage_partition(handle);
             if (output_pos == 0)
             {
@@ -900,7 +800,7 @@ esp_err_t ghota_storage_update(
         ESP_LOGD(
             TAG,
             "HTTP GET Status = %d, "
-            "content_length = %" PRICONTENT_LENGTH,
+            "content_length = %" PRId64,
             esp_http_client_get_status_code(client),
             esp_http_client_get_content_length(client));
         uint8_t sha256[32] = {0};

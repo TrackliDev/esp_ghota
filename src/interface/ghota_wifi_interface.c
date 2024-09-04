@@ -7,17 +7,14 @@
 #include "interface/ghota_wifi_interface.h"
 #include "esp_ghota_client.h"
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+#define PRICONTENT_LENGTH PRId64
+#else
+#define PRICONTENT_LENGTH PRId32
+#endif
+
 static char *WIFI_INTERFACE_TAG =
     "Ghota Wi-Fi Interface";
-
-static esp_err_t wifi_get_release_info(
-    ghota_client_handle_t *handle,
-    char *url,
-    lwjson_stream_parser_t *parser);
-
-static ghota_interface_t wifi_ghota_interface = {
-    .get_release_info = &wifi_get_release_info};
-
 
 static esp_err_t _http_event_handler(
     esp_http_client_event_t *evt)
@@ -60,7 +57,10 @@ static esp_err_t _http_event_handler(
                       res == lwjsonSTREAMDONE ||
                       res == lwjsonSTREAMINPROG))
                 {
-                    ESP_LOGE(WIFI_INTERFACE_TAG, "Lwjson Error: %d", res);
+                    ESP_LOGE(
+                        WIFI_INTERFACE_TAG,
+                        "Lwjson Error: %d",
+                        res);
                 }
                 buf++;
             }
@@ -76,9 +76,13 @@ static esp_err_t _http_event_handler(
         if (err != 0)
         {
             ESP_LOGE(
-                WIFI_INTERFACE_TAG, "Last esp error code: 0x%x", err);
+                WIFI_INTERFACE_TAG,
+                "Last esp error code: 0x%x",
+                err);
             ESP_LOGE(
-                WIFI_INTERFACE_TAG, "Last mbedtls failure: 0x%x", mbedtls_err);
+                WIFI_INTERFACE_TAG,
+                "Last mbedtls failure: 0x%x",
+                mbedtls_err);
         }
         break;
     }
@@ -112,17 +116,51 @@ static esp_err_t wifi_get_release_info(
             ghota_client_get_token(handle);
         httpconfig.auth_type = HTTP_AUTH_TYPE_BASIC;
     }
-    ESP_LOGI(WIFI_INTERFACE_TAG, "Searching for Firmware from %s", url);
+    ESP_LOGI(
+        WIFI_INTERFACE_TAG,
+        "Searching for Firmware from %s",
+        url);
 
     esp_http_client_handle_t client =
         esp_http_client_init(&httpconfig);
 
     esp_err_t err = esp_http_client_perform(client);
 
+    int status_code = 
+        esp_http_client_get_status_code(client);
+
+    if (err == ESP_OK)
+    {
+        ESP_LOGD(
+            WIFI_INTERFACE_TAG,
+            "HTTP GET Status = %d, "
+            "content_length = %" PRICONTENT_LENGTH,
+            status_code,
+            esp_http_client_get_content_length(client));
+    }
+    else
+    {
+        ESP_LOGE(
+            WIFI_INTERFACE_TAG,
+            "HTTP GET request failed: %s",
+            esp_err_to_name(err));
+    }
+
+    if (status_code != 200)
+        err = ESP_FAIL;
+
+    if (esp_http_client_cleanup(client) != ESP_OK)
+        ESP_LOGE(
+            WIFI_INTERFACE_TAG,
+            "HTTP client cleanup failed");
+
     return err;
 }
 
-ghota_interface_t *get_wifi_ghota_interface()
+static ghota_interface_t ghota_wifi_interface = {
+    .get_release_info = &wifi_get_release_info};
+
+ghota_interface_t *get_ghota_wifi_interface()
 {
-    return &wifi_ghota_interface;
+    return &ghota_wifi_interface;
 }

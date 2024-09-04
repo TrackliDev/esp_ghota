@@ -10,6 +10,11 @@ extern "C"
 #endif
 
     /**
+     * @brief Ghota interface forward declaration
+     */
+    typedef struct ghota_interface ghota_interface_t;
+
+    /**
      * @brief Github OTA Configuration
      */
     typedef struct ghota_config_t
@@ -21,6 +26,7 @@ extern "C"
         char *orgname;                                  /*!< Name of the Github organization */
         char *reponame;                                 /*!< Name of the Github repository */
         uint32_t updateInterval;                        /*!< Interval in Minutes to check for updates if using the ghota_start_update_timer function */
+        ghota_interface_t *interface;                   /*!< Execution interface that uses a specific communication layer (Wi-Fi, GSM, etc) */
     } ghota_config_t;
 
 #ifdef __cplusplus

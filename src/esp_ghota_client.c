@@ -26,7 +26,6 @@ typedef struct ghota_client_handle
     uint32_t countdown;
     TaskHandle_t task_handle;
     const esp_partition_t *storage_partition;
-    ghota_interface_t *interface;
 } ghota_client_handle_t;
 
 char *ghota_client_get_username(
@@ -206,6 +205,8 @@ void ghota_client_set_config(
 
     handle->config.updateInterval =
         config->updateInterval;
+    handle->config.interface =
+        config->interface;
 }
 
 semver_t *ghota_client_get_current_version(

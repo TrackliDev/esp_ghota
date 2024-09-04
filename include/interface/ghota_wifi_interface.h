@@ -8,7 +8,7 @@ extern "C"
 {
 #endif
 
-    ghota_interface_t *get_wifi_ghota_interface();
+    ghota_interface_t *get_ghota_wifi_interface();
 
 #ifdef __cplusplus
 }
