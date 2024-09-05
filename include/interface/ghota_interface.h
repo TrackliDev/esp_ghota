@@ -17,6 +17,12 @@ extern "C"
             char *,                   // url
             lwjson_stream_parser_t *  // JSON stream parser
         );
+        esp_err_t (*install_firmware)(
+            ghota_client_handle_t *   // handle
+        );
+        esp_err_t (*install_storage)(
+            ghota_client_handle_t *   // handle
+        );
     } ghota_interface_t;
 
 #ifdef __cplusplus
