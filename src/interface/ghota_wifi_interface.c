@@ -280,8 +280,8 @@ static esp_err_t wifi_install_firmware(
     {
         ESP_LOGE(
             WIFI_INTERFACE_TAG,
-            "ESP HTTPS OTA Begin failed: %d",
-            err);
+            "ESP HTTPS OTA Begin failed: %s",
+            esp_err_to_name(err));
 
         esp_https_ota_abort(https_ota_handle);
         return err;
