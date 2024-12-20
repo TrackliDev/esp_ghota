@@ -1,0 +1,33 @@
+#include "esp_ghota_event.h"
+
+char *ghota_get_event_str(ghota_event_e event)
+{
+    switch (event)
+    {
+    case GHOTA_EVENT_START_CHECK:
+        return "GHOTA_EVENT_START_CHECK";
+    case GHOTA_EVENT_UPDATE_AVAILABLE:
+        return "GHOTA_EVENT_UPDATE_AVAILABLE";
+    case GHOTA_EVENT_NOUPDATE_AVAILABLE:
+        return "GHOTA_EVENT_NOUPDATE_AVAILABLE";
+    case GHOTA_EVENT_START_UPDATE:
+        return "GHOTA_EVENT_START_UPDATE";
+    case GHOTA_EVENT_FINISH_UPDATE:
+        return "GHOTA_EVENT_FINISH_UPDATE";
+    case GHOTA_EVENT_UPDATE_FAILED:
+        return "GHOTA_EVENT_UPDATE_FAILED";
+    case GHOTA_EVENT_START_STORAGE_UPDATE:
+        return "GHOTA_EVENT_START_STORAGE_UPDATE";
+    case GHOTA_EVENT_FINISH_STORAGE_UPDATE:
+        return "GHOTA_EVENT_FINISH_STORAGE_UPDATE";
+    case GHOTA_EVENT_STORAGE_UPDATE_FAILED:
+        return "GHOTA_EVENT_STORAGE_UPDATE_FAILED";
+    case GHOTA_EVENT_FIRMWARE_UPDATE_PROGRESS:
+        return "GHOTA_EVENT_FIRMWARE_UPDATE_PROGRESS";
+    case GHOTA_EVENT_STORAGE_UPDATE_PROGRESS:
+        return "GHOTA_EVENT_STORAGE_UPDATE_PROGRESS";
+    case GHOTA_EVENT_PENDING_REBOOT:
+        return "GHOTA_EVENT_PENDING_REBOOT";
+    }
+    return "Unknown Event";
+}
