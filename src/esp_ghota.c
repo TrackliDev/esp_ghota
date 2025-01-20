@@ -360,7 +360,7 @@ esp_err_t ghota_check(
             res);
         err = esp_event_post(
             GHOTA_EVENTS,
-            GHOTA_EVENT_NOUPDATE_AVAILABLE,
+            GHOTA_EVENT_UPDATE_FAILED,
             handle,
             sizeof(ghota_client_handle_t *),
             portMAX_DELAY);
@@ -396,7 +396,7 @@ esp_err_t ghota_check(
             esp_err_to_name(err));
         err = esp_event_post(
             GHOTA_EVENTS,
-            GHOTA_EVENT_NOUPDATE_AVAILABLE,
+            GHOTA_EVENT_UPDATE_FAILED,
             handle,
             sizeof(ghota_client_handle_t *),
             portMAX_DELAY);
@@ -406,7 +406,7 @@ esp_err_t ghota_check(
                 TAG,
                 "event %s post failed: %s",
                 ghota_get_event_str(
-                    GHOTA_EVENT_NOUPDATE_AVAILABLE),
+                    GHOTA_EVENT_UPDATE_FAILED),
                 esp_err_to_name(err));
         }
         xSemaphoreGive(ghota_lock);
@@ -424,7 +424,7 @@ esp_err_t ghota_check(
             ESP_LOGE(TAG, "Failed to parse new version");
             err = esp_event_post(
                 GHOTA_EVENTS,
-                GHOTA_EVENT_NOUPDATE_AVAILABLE,
+                GHOTA_EVENT_UPDATE_FAILED,
                 handle,
                 sizeof(ghota_client_handle_t *),
                 portMAX_DELAY);
@@ -434,7 +434,7 @@ esp_err_t ghota_check(
                     TAG,
                     "event %s post failed: %s",
                     ghota_get_event_str(
-                        GHOTA_EVENT_NOUPDATE_AVAILABLE),
+                        GHOTA_EVENT_UPDATE_FAILED),
                     esp_err_to_name(err));
             }
             xSemaphoreGive(ghota_lock);
@@ -483,7 +483,7 @@ esp_err_t ghota_check(
             "Asset: No Valid Firmware Assets Found");
         err = esp_event_post(
             GHOTA_EVENTS,
-            GHOTA_EVENT_NOUPDATE_AVAILABLE,
+            GHOTA_EVENT_UPDATE_FAILED,
             handle,
             sizeof(ghota_client_handle_t *),
             portMAX_DELAY);
@@ -493,7 +493,7 @@ esp_err_t ghota_check(
                 TAG,
                 "event %s post failed: %s",
                 ghota_get_event_str(
-                    GHOTA_EVENT_NOUPDATE_AVAILABLE),
+                    GHOTA_EVENT_UPDATE_FAILED),
                 esp_err_to_name(err));
         }
         xSemaphoreGive(ghota_lock);
